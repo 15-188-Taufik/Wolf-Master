@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+// Model untuk Sesi Permainan
+model Game {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  status      String   @default("SETUP") // SETUP, NIGHT, DAY, FINISHED
+  currentTurn Int      @default(0)
+  players     Player[]
+  logs        Log[]
+}
+
+// Model untuk Role (Master Data)
+model Role {
+  id            String   @id
+  name          String
+  alignment     String   // Goodside, Badside, Neutral
+  description   String
+  nightPriority Int
+  players       Player[]
+}
+
+// Model untuk Pemain dalam Game
+model Player {
+  id           String   @id @default(cuid())
+  nickname     String
+  isAlive      Boolean  @default(true)
+  
+  // Role Relation
+  roleId       String
+  role         Role     @relation(fields: [roleId], references: [id])
+  
+  // Dynamic Alignment (untuk Orphan/Traitor yang bisa berubah tim)
+  currentAlignment String 
+
+  // State Management Logics
+  effects      String[] // Contoh: ["silenced", "protected", "drunk"]
+  
+  // Linkages (Relasi antar pemain)
+  linkedToId   String?  // Untuk Lover atau Bomberman target
+  parentId     String?  // Khusus untuk Orphan (ID "Bapaknya")
+  
+  gameId       String
+  game         Game     @relation(fields: [gameId], references: [id])
+
+  createdAt    DateTime @default(now())
+}
+
+// Model untuk Catatan Kejadian (Game Log)
+model Log {
+  id          String   @id @default(cuid())
+  turnNumber  Int
+  phase       String   // NIGHT / DAY
+  message     String
+  gameId      String
+  game        Game     @relation(fields: [gameId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model MasterPlayer {
+  id        String   @id @default(cuid())
+  nickname  String   @unique
+  createdAt DateTime @default(now())
+}
