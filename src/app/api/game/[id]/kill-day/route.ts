@@ -58,10 +58,17 @@ export async function POST(
     });
     const deathMessage = deadPlayers.map(p => p.nickname).join(", ") + " telah tewas dalam voting siang hari.";
     
+    // Get current game state to get turn number and phase
+    const game = await prisma.game.findUnique({
+      where: { id }
+    });
+    
     await prisma.log.create({
       data: {
         gameId: id,
-        message: deathMessage
+        message: deathMessage,
+        turnNumber: game?.currentTurn || 1,
+        phase: "DAY"
       }
     });
 
