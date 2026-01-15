@@ -6,9 +6,11 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 // Model untuk Sesi Permainan
 model Game {
   id          String   @id @default(cuid())
+  name        String?  // Tambahan: Nama room (opsional, agar sesuai dengan API create game)
   createdAt   DateTime @default(now())
   status      String   @default("SETUP") // SETUP, NIGHT, DAY, FINISHED
   currentTurn Int      @default(0)
@@ -28,39 +30,47 @@ model Role {
 
 // Model untuk Pemain dalam Game
 model Player {
-  id           String   @id @default(cuid())
-  nickname     String
-  isAlive      Boolean  @default(true)
+  id               String   @id @default(cuid())
+  nickname         String
+  avatarUrl        String?  // Tambahan: Untuk menyimpan link gambar avatar
+  isAlive          Boolean  @default(true)
   
   // Role Relation
-  roleId       String
-  role         Role     @relation(fields: [roleId], references: [id])
+  roleId           String
+  role             Role     @relation(fields: [roleId], references: [id])
   
   // Dynamic Alignment (untuk Orphan/Traitor yang bisa berubah tim)
   currentAlignment String 
 
   // State Management Logics
-  effects      String[] // Contoh: ["silenced", "protected", "drunk"]
+  effects          String[] // Contoh: ["silenced", "protected", "drunk"]
   
   // Linkages (Relasi antar pemain)
-  linkedToId   String?  // Untuk Lover atau Bomberman target
-  parentId     String?  // Khusus untuk Orphan (ID "Bapaknya")
+  linkedToId       String?  // Untuk Lover atau Bomberman target
+  parentId         String?  // Khusus untuk Orphan (ID "Bapaknya")
+  mentorId         String?  // Tambahan: Jika diperlukan untuk role Orphan/Apprentice
   
-  gameId       String
-  game         Game     @relation(fields: [gameId], references: [id])
+  gameId           String
+  game             Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
-  createdAt    DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt // Tambahan: Mencatat kapan terakhir diupdate
+
+  // --- KUNCI MENGHINDARI DUPLIKAT ---
+  // Kombinasi gameId dan nickname harus unik.
+  // Artinya: Dalam satu Game ID, tidak boleh ada dua nickname yang sama.
+  @@unique([gameId, nickname])
 }
 
 // Model untuk Catatan Kejadian (Game Log)
 model Log {
-  id          String   @id @default(cuid())
-  turnNumber  Int
-  phase       String   // NIGHT / DAY
-  message     String
-  gameId      String
-  game        Game     @relation(fields: [gameId], references: [id])
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  turnNumber Int
+  phase      String   // NIGHT / DAY
+  message    String
+  gameId     String
+  game       Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
 }
 
 model MasterPlayer {
