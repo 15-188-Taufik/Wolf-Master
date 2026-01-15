@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    const players = await prisma.player.findMany({
+    const players = await prisma.masterPlayer.findMany({
       orderBy: { nickname: 'asc' }
     });
     // Pastikan mengembalikan array kosong [] jika data tidak ada, bukan null
