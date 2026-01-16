@@ -105,16 +105,16 @@ export default function ModeratorDashboard() {
     .sort((a: any, b: any) => a.role.nightPriority - b.role.nightPriority);
 
   return (
-    <div className="min-h-screen p-3 sm:p-6 md:p-10 bg-night-gradient text-white">
+    <div className="min-h-screen p-3 sm:p-4 md:p-6 lg:p-10 bg-night-gradient text-white">
       <div className="max-w-7xl mx-auto">
         
         {/* --- HEADER --- */}
-        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 sm:mb-12">
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tighter italic">Wolf<span className="text-wolf-blood">Master</span></h1>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full sm:w-auto">
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8 md:mb-12">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tighter italic break-words">Wolf<span className="text-wolf-blood">Master</span></h1>
+          <div className="flex flex-col xs:flex-row gap-2 sm:gap-3 md:gap-4 w-full sm:w-auto">
             <button
               onClick={() => setActiveTab(activeTab === 'siang' ? 'malam' : 'siang')}
-              className={`px-4 sm:px-8 py-2 sm:py-3 rounded-[16px] text-xs font-black transition-all flex items-center justify-center gap-2 ${
+              className={`px-3 sm:px-6 md:px-8 py-2 md:py-3 rounded-lg sm:rounded-xl md:rounded-[16px] text-xs sm:text-sm md:text-base font-black transition-all flex items-center justify-center gap-2 ${
                 activeTab === 'siang'
                   ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
                   : 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
@@ -132,52 +132,52 @@ export default function ModeratorDashboard() {
                 </>
               )}
             </button>
-            <button onClick={() => router.push('/')} className="p-2 sm:p-4 bg-red-500/10 text-red-500 rounded-2xl hover:bg-red-600 hover:text-white transition-all flex-shrink-0"><LogOut size={20}/></button>
+            <button onClick={() => router.push('/')} className="p-2 sm:p-3 md:p-4 bg-red-500/10 text-red-500 rounded-lg sm:rounded-xl md:rounded-2xl hover:bg-red-600 hover:text-white transition-all flex-shrink-0"><LogOut size={18}/></button>
           </div>
         </header>
 
         {/* --- MORNING REPORT --- */}
         <AnimatePresence>
           {morningReport.length > 0 && (
-            <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass-card p-6 rounded-[32px] border-2 border-wolf-gold/30 mb-10 bg-wolf-gold/5">
-              <div className="flex justify-between mb-4">
-                <h2 className="text-wolf-gold font-black italic flex items-center gap-2 uppercase tracking-tighter text-xl"><Info size={24}/> RINGKASAN RITUAL</h2>
-                <button onClick={() => setMorningReport([])}><RefreshCcw size={18} className="text-gray-500"/></button>
+            <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass-card p-4 sm:p-5 md:p-6 rounded-xl sm:rounded-2xl md:rounded-[32px] border-2 border-wolf-gold/30 mb-6 sm:mb-8 md:mb-10 bg-wolf-gold/5">
+              <div className="flex justify-between items-start sm:items-center mb-3 sm:mb-4 gap-2">
+                <h2 className="text-wolf-gold font-black italic flex items-center gap-2 uppercase tracking-tighter text-base sm:text-lg md:text-xl"><Info size={18}/> RINGKASAN RITUAL</h2>
+                <button onClick={() => setMorningReport([])}><RefreshCcw size={16} className="text-gray-500"/></button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
                 {morningReport.map((msg, i) => (
-                  <div key={i} className="bg-black/40 p-4 rounded-2xl border border-white/5 text-sm flex items-center gap-3"><CheckCircle2 className="text-wolf-gold" size={16}/> {msg}</div>
+                  <div key={i} className="bg-black/40 p-2 sm:p-3 md:p-4 rounded-lg sm:rounded-xl md:rounded-2xl border border-white/5 text-xs sm:text-sm flex items-center gap-2 sm:gap-3"><CheckCircle2 className="text-wolf-gold flex-shrink-0" size={14}/> {msg}</div>
                 ))}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 md:gap-6 lg:gap-10">
           
           <div className="lg:col-span-3">
             <AnimatePresence mode="wait">
               {activeTab === 'siang' ? (
                 /* --- TAB SIANG: PLAYER CARDS --- */
-                <motion.div key="siang" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                <motion.div key="siang" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
                   {game?.players?.map((p: any) => (
-                    <div key={p.id} className={`glass-card p-4 sm:p-6 rounded-[24px] sm:rounded-[32px] border-t border-white/10 transition-all ${p.isAlive ? 'shadow-lg' : 'opacity-20 grayscale'}`}>
-                      <div className="flex justify-between items-start gap-3">
+                    <div key={p.id} className={`glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl md:rounded-[24px] lg:rounded-[32px] border-t border-white/10 transition-all ${p.isAlive ? 'shadow-lg' : 'opacity-20 grayscale'}`}>
+                      <div className="flex justify-between items-start gap-2 sm:gap-3">
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-lg sm:text-2xl font-bold break-words">{p.nickname}</h3>
-                          <span className="text-xs sm:text-sm font-black uppercase text-wolf-gold mt-1 block">{p.role.name}</span>
+                          <h3 className="text-base sm:text-lg md:text-2xl font-bold break-words">{p.nickname}</h3>
+                          <span className="text-[10px] sm:text-xs md:text-sm font-black uppercase text-wolf-gold mt-1 block">{p.role.name}</span>
                         </div>
                         {p.isAlive && (
                           <motion.button
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleKillPlayer(p.id)}
-                            className={`flex-shrink-0 p-2 sm:p-3 rounded-xl sm:rounded-2xl transition-all ${
+                            className={`flex-shrink-0 p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-lg md:rounded-xl lg:rounded-2xl transition-all min-h-[40px] min-w-[40px] flex items-center justify-center ${
                               selectedVictim === p.id
                                 ? 'bg-red-600 text-white'
                                 : 'bg-red-500/10 text-red-500 hover:bg-red-600 hover:text-white'
                             }`}
                           >
-                            <Skull size={20}/>
+                            <Skull size={18}/>
                           </motion.button>
                         )}
                       </div>
@@ -190,6 +190,7 @@ export default function ModeratorDashboard() {
                   game={game}
                   players={game?.players || []}
                   onComplete={async (roleActions) => {
+                    console.log('📤 [FRONTEND] Sending actions:', roleActions);
                     setResolving(true);
                     try {
                       const res = await fetch(`/api/game/${id}/resolve`, {
@@ -198,6 +199,7 @@ export default function ModeratorDashboard() {
                         body: JSON.stringify({ actions: roleActions })
                       });
                       const result = await res.json();
+                      console.log('📥 [FRONTEND] Resolve result:', result);
                       setMorningReport(result.reports);
                       playSound('morning');
                       
@@ -237,9 +239,13 @@ export default function ModeratorDashboard() {
              <div className="glass-card p-6 rounded-[32px] border border-white/10 max-h-[300px] overflow-y-auto custom-scrollbar">
                 <h2 className="text-[10px] font-black mb-4 uppercase tracking-widest text-gray-400 flex items-center gap-2"><History size={14}/> Ritual Log</h2>
                 <div className="space-y-3">
-                  {game?.logs?.slice().reverse().map((log: any) => (
-                    <div key={log.id} className="text-[10px] border-l-2 border-wolf-gold pl-3 py-1 text-gray-400 leading-relaxed">{log.message}</div>
-                  ))}
+                  {game?.logs && game.logs.length > 0 ? (
+                    game.logs.slice().reverse().map((log: any) => (
+                      <div key={log.id} className="text-[10px] border-l-2 border-wolf-gold pl-3 py-1 text-gray-400 leading-relaxed">{log.message}</div>
+                    ))
+                  ) : (
+                    <div className="text-[10px] text-gray-500">Belum ada log</div>
+                  )}
                 </div>
              </div>
           </aside>

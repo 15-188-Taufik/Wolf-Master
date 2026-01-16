@@ -37,14 +37,22 @@ export default function NightPhaseModeration({
   const [currentRoleIdx, setCurrentRoleIdx] = useState(0);
   const [actions, setActions] = useState<RoleAction>({});
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
+  const [huntingConfirmed, setHuntingConfirmed] = useState(false);
 
   // Get unique roles with night actions, sorted by priority
+  // Combine werewolf and wolfman into a single hunting phase
   const nightRoles = React.useMemo(() => {
     const uniqueRoles = new Map();
+    const hasWerewolf = players.some(p => p.isAlive && p.role.id === 'werewolf');
+    const hasWolfman = players.some(p => p.isAlive && p.role.id === 'wolfman');
     
-    players
+    let processedRoles = players
       .filter(p => p.isAlive && p.role.nightPriority < 99)
       .forEach(p => {
+        // Skip wolfman if werewolf exists - combine into werewolf phase
+        if (p.role.id === 'wolfman' && hasWerewolf) {
+          return;
+        }
         if (!uniqueRoles.has(p.role.id)) {
           uniqueRoles.set(p.role.id, p.role);
         }
@@ -56,44 +64,120 @@ export default function NightPhaseModeration({
   }, [players]);
 
   const currentRole = nightRoles[currentRoleIdx];
-  const playersWithRole = players.filter(
-    p => p.isAlive && p.role.id === currentRole?.id
-  );
+  
+  // Get all players with current role (werewolf + wolfman combined)
+  let playersWithRole = players.filter(p => p.isAlive && p.role.id === currentRole?.id);
+  
+  // If current role is werewolf and hunting hasn't been processed, include wolfman too
+  if (currentRole?.id === 'werewolf' && !huntingConfirmed) {
+    const wolfmanPlayers = players.filter(p => p.isAlive && p.role.id === 'wolfman');
+    playersWithRole = [...playersWithRole, ...wolfmanPlayers];
+  }
+
   const currentActor = playersWithRole[0]; // Get first player with this role
+
+  // Debug logging
+  React.useEffect(() => {
+    if (currentRole) {
+      console.log(`👁️ [NIGHT] Current role: ${currentRole.id}, Actor: ${currentActor?.nickname} (${currentActor?.id}), Priority: ${currentRole.nightPriority}`);
+    }
+  }, [currentRole, currentActor]);
 
   // Filter available targets based on role
   const availableTargets = players.filter(
     p => p.isAlive && p.role.id !== currentRole?.id
   ).filter(p => {
-    // Werewolf, Wolfman, and Lone Wolf cannot prey on each other
+    // Werewolf and Wolfman cannot prey on each other
     const wolfRoles = ['werewolf', 'wolfman', 'lone_wolf'];
     if (wolfRoles.includes(currentRole?.id || '')) {
       return !wolfRoles.includes(p.roleId);
     }
+    // Gunner can choose not to shoot
     return true;
   });
 
+  React.useEffect(() => {
+    console.log(`🌙 [NightPhaseModeration] Component mounted. Night roles: ${nightRoles.map(r => r.id).join(', ')}`);
+  }, [nightRoles]);
+
   const handleSelectTarget = (playerId: string) => {
+    const isSelected = selectedTarget === playerId;
+    const targetName = players.find(p => p.id === playerId)?.nickname;
+    console.log(`🎯 [SELECT TARGET] ${isSelected ? 'Deselecting' : 'Selecting'}: ${targetName} (${playerId})`);
     setSelectedTarget(selectedTarget === playerId ? null : playerId);
   };
 
   const handleConfirmRole = () => {
-    if (currentActor && selectedTarget) {
-      // Store action for this specific actor
-      setActions(prev => ({
-        ...prev,
-        [currentActor.id]: selectedTarget,
-      }));
-    }
+    console.log(`✅ [CONFIRM] Role: ${currentRole?.id}, Target: ${selectedTarget}, Actor: ${currentActor?.id}`);
     
-    // Move to next role
-    if (currentRoleIdx < nightRoles.length - 1) {
-      setCurrentRoleIdx(currentRoleIdx + 1);
+    if (currentRole?.id === 'werewolf') {
+      // Store action for the hunt (applies to both werewolf and wolfman)
+      if (selectedTarget) {
+        console.log(`🐺 [WEREWOLF] Setting hunt target: ${selectedTarget}`);
+        setActions(prev => {
+          const newActions = {
+            ...prev,
+            werewolf_hunt: selectedTarget,
+          };
+          console.log(`🐺 [WEREWOLF] Actions after update:`, newActions);
+          return newActions;
+        });
+      }
+      setHuntingConfirmed(true);
       setSelectedTarget(null);
+      
+      // Move to next role
+      if (currentRoleIdx < nightRoles.length - 1) {
+        setCurrentRoleIdx(currentRoleIdx + 1);
+      }
+    } else if (currentRole?.id === 'gunner') {
+      // For gunner, store action with gunner player ID
+      if (selectedTarget && currentActor) {
+        console.log(`🔫 [GUNNER] Confirm: Gunner ${currentActor.id} (${currentActor.nickname}) → Target ${selectedTarget} (${players.find(p => p.id === selectedTarget)?.nickname})`);
+        setActions(prev => {
+          const newActions = {
+            ...prev,
+            [currentActor.id]: selectedTarget,
+          };
+          console.log(`🔫 [GUNNER] Actions after confirm:`, newActions);
+          return newActions;
+        });
+      } else {
+        console.log(`⚠️ [GUNNER] Missing data - selectedTarget: ${selectedTarget}, currentActor: ${currentActor?.id}`);
+      }
+      
+      // Move to next role
+      if (currentRoleIdx < nightRoles.length - 1) {
+        console.log(`➡️ [GUNNER] Moving to next role (${currentRoleIdx} → ${currentRoleIdx + 1})`);
+        setCurrentRoleIdx(currentRoleIdx + 1);
+        setSelectedTarget(null);
+      }
+    } else if (currentActor && selectedTarget) {
+      // Store action for this specific actor
+      console.log(`🎯 [OTHER] Storing action for ${currentActor.id} → ${selectedTarget}`);
+      setActions(prev => {
+        const newActions = {
+          ...prev,
+          [currentActor.id]: selectedTarget,
+        };
+        console.log(`🎯 [OTHER] Actions after confirm:`, newActions);
+        return newActions;
+      });
+      
+      // Move to next role
+      if (currentRoleIdx < nightRoles.length - 1) {
+        setCurrentRoleIdx(currentRoleIdx + 1);
+        setSelectedTarget(null);
+      }
+    } else {
+      console.log(`⚠️ [CONFIRM] No action taken - all conditions failed`);
     }
   };
 
   const handleSkipRole = () => {
+    if (currentRole?.id === 'werewolf') {
+      setHuntingConfirmed(true);
+    }
     // Move to next role without action
     if (currentRoleIdx < nightRoles.length - 1) {
       setCurrentRoleIdx(currentRoleIdx + 1);
@@ -102,6 +186,9 @@ export default function NightPhaseModeration({
   };
 
   const handleFinish = () => {
+    console.log('📤 [NightPhaseModeration.handleFinish] Current actions state before sending:', actions);
+    console.log('📤 [NightPhaseModeration] Action keys:', Object.keys(actions));
+    console.log('📤 [NightPhaseModeration] Action values:', Object.values(actions));
     onComplete(actions);
   };
 
@@ -150,10 +237,12 @@ export default function NightPhaseModeration({
       >
         <div className="mb-8 text-center">
           <h1 className="text-4xl md:text-5xl font-black mb-2 text-wolf-gold italic">
-            {currentRole.name}
+            {currentRole?.id === 'werewolf' ? 'BERBURU MALAM' : currentRole?.name}
           </h1>
           <p className="text-gray-400">
-            {playersWithRole.length > 1
+            {currentRole?.id === 'werewolf' 
+              ? `Werewolf & Wolfman - Pilih 1 target`
+              : playersWithRole.length > 1
               ? `${playersWithRole.length} pemain dengan role ini`
               : '1 pemain dengan role ini'}
           </p>
@@ -184,7 +273,11 @@ export default function NightPhaseModeration({
             <div>
               <p className="font-bold mb-2">Instruksi:</p>
               <p className="text-sm text-gray-300">
-                {currentRole.name} BUKA MATA! Silakan pilih 1 target pemain untuk aksi malam.
+                {currentRole?.id === 'werewolf' 
+                  ? 'WEREWOLF & WOLFMAN BUKA MATA! Silakan pilih 1 target pemain untuk diburu. Atau lewati jika ingin tidak memburu.'
+                  : currentRole?.id === 'gunner'
+                  ? 'GUNNER BUKA MATA! Silakan pilih 1 target pemain untuk ditambak. Atau lewati jika ingin tidak menembak.'
+                  : `${currentRole?.name} BUKA MATA! Silakan pilih 1 target pemain untuk aksi malam.`}
               </p>
             </div>
           </div>
@@ -227,11 +320,20 @@ export default function NightPhaseModeration({
             className="flex-1 px-6 py-3 bg-white/5 border border-white/10 rounded-[16px] font-bold hover:bg-white/10 transition-all flex items-center justify-center gap-2"
           >
             <SkipForward size={18} />
-            Lewati
+            {currentRole?.id === 'werewolf' || currentRole?.id === 'gunner' ? 'Tidak ' + (currentRole?.id === 'werewolf' ? 'Berburu' : 'Menembak') : 'Lewati'}
           </button>
 
           <button
-            onClick={isLastRole ? handleFinish : handleConfirmRole}
+            onClick={() => {
+              console.log(`📌 [BUTTON CLICK] isLastRole: ${isLastRole}, selectedTarget: ${selectedTarget}, currentRole: ${currentRole?.id}`);
+              if (isLastRole) {
+                console.log(`📌 [BUTTON CLICK] Calling handleFinish`);
+                handleFinish();
+              } else {
+                console.log(`📌 [BUTTON CLICK] Calling handleConfirmRole`);
+                handleConfirmRole();
+              }
+            }}
             disabled={!selectedTarget}
             className={`flex-1 px-6 py-3 rounded-[16px] font-bold transition-all flex items-center justify-center gap-2 ${
               selectedTarget

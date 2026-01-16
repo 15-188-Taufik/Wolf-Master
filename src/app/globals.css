@@ -10,11 +10,22 @@
   --color-wolf-gold: #c0a080;
 }
 
+html {
+  font-size: clamp(14px, 2vw, 16px);
+}
+
 body {
   color: rgb(var(--foreground-rgb));
   background: radial-gradient(circle at top, #111111 0%, #050505 100%);
   min-height: 100vh;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -webkit-touch-callout: none;
+}
+
+/* Prevent zoom on input focus on iOS */
+input, textarea, select {
+  font-size: 16px !important;
 }
 
 /* Custom Glassmorphism Utility */
@@ -37,6 +48,16 @@ body {
   .glass-input:focus {
     border-color: rgba(255, 255, 255, 0.3);
   }
+
+  /* Safe area for notched devices */
+  @supports (padding: max(0px)) {
+    body {
+      padding-left: max(0px, env(safe-area-inset-left));
+      padding-right: max(0px, env(safe-area-inset-right));
+      padding-top: max(0px, env(safe-area-inset-top));
+      padding-bottom: max(0px, env(safe-area-inset-bottom));
+    }
+  }
 }
 
 /* Custom Scrollbar */
@@ -49,4 +70,28 @@ body {
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 10px;
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Better touch targets for mobile */
+  button, a, input, textarea, select {
+    min-height: 44px;
+  }
+
+  /* Reduce motion for mobile */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
 }

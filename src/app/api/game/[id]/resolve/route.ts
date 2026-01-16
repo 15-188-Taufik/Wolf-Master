@@ -7,7 +7,9 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const { actions } = await req.json(); // Format: { [actorId]: targetId }
+    const { actions } = await req.json(); // Format: { [actorId]: targetId } or werewolf_hunt: targetId
+
+    console.log('📋 [RESOLVE] Incoming actions:', JSON.stringify(actions));
 
     // 1. Ambil data semua pemain & role yang masih hidup
     const players = await prisma.player.findMany({
@@ -15,14 +17,30 @@ export async function POST(
       include: { role: true }
     });
 
+    console.log('👥 [RESOLVE] Players:', players.map(p => ({ id: p.id, nickname: p.nickname, roleId: p.roleId })));
+
+    // Handle special werewolf_hunt key - map to all werewolf and wolfman players
+    let normalizedActions = { ...actions };
+    if (actions.werewolf_hunt) {
+      const werewolfPlayers = players.filter(p => ['werewolf', 'wolfman'].includes(p.roleId));
+      for (const wolf of werewolfPlayers) {
+        normalizedActions[wolf.id] = actions.werewolf_hunt;
+      }
+      delete normalizedActions.werewolf_hunt;
+    }
+
+    console.log('🔄 [RESOLVE] Normalized actions:', JSON.stringify(normalizedActions));
+
     // Urutkan aksi berdasarkan nightPriority peran si pelaku (Priority 0 - 99)
-    const sortedActions = Object.entries(actions)
+    const sortedActions = Object.entries(normalizedActions)
       .map(([actorId, targetId]) => ({
         actor: players.find(p => p.id === actorId),
         target: players.find(p => p.id === (targetId as string)),
       }))
       .filter(a => a.actor && a.target)
       .sort((a, b) => (a.actor?.role.nightPriority || 99) - (b.actor?.role.nightPriority || 99));
+
+    console.log('📊 [RESOLVE] Sorted actions:', sortedActions.map(a => ({ actor: a.actor?.nickname, actorRole: a.actor?.roleId, target: a.target?.nickname })));
 
     let deaths: string[] = [];
     let protections: string[] = [];
@@ -31,12 +49,16 @@ export async function POST(
     let silencedPlayers: string[] = [];
 
     // --- PHASE 1: SETUP & MANIPULATION (Thief, Blacksmith, Protection) ---
+    let phase1ActorIds: string[] = []; // Track which players were involved in Phase 1
+    
     for (const action of sortedActions) {
       const { actor, target } = action;
       if (!actor || !target) continue;
 
       switch (actor.roleId) {
         case 'thief':
+          // Track that this player was involved in Phase 1 ONLY if they actually have an action
+          phase1ActorIds.push(actor.id);
           // Mekanisme Thief: Langsung tukar roleId di database
           const actorRole = actor.roleId;
           const targetRole = target.roleId;
@@ -48,24 +70,48 @@ export async function POST(
           break;
 
         case 'blacksmith':
+          phase1ActorIds.push(actor.id);
           blacksmithActive = true;
           reports.push("Blacksmith menyebarkan biji besi, Werewolf akan kesulitan masuk.");
           break;
 
         case 'guardian':
         case 'doctor':
+          phase1ActorIds.push(actor.id);
           protections.push(target.id);
           break;
       }
     }
 
+    // Re-fetch players to get updated roles after Phase 1
+    const updatedPlayers = await prisma.player.findMany({
+      where: { gameId: id, isAlive: true },
+      include: { role: true }
+    });
+
+    // Rebuild sortedActions with updated player data
+    const updatedSortedActions = Object.entries(normalizedActions)
+      .map(([actorId, targetId]) => ({
+        actor: updatedPlayers.find(p => p.id === actorId),
+        target: updatedPlayers.find(p => p.id === (targetId as string)),
+      }))
+      .filter(a => a.actor && a.target)
+      .sort((a, b) => (a.actor?.role.nightPriority || 99) - (b.actor?.role.nightPriority || 99));
+
+    console.log('🔄 [PHASE 1.5] Updated sorted actions:', updatedSortedActions.map(a => ({ actor: a.actor?.nickname, actorRole: a.actor?.roleId, priority: a.actor?.role.nightPriority, target: a.target?.nickname })));
+
     // --- PHASE 2: KILLING & SPECIAL ACTIONS (WW, Gunner, Psycopath, Vampire, etc.) ---
-    for (const action of sortedActions) {
+    for (const action of updatedSortedActions) {
       const { actor, target } = action;
       if (!actor || !target || !actor.isAlive) continue;
 
-      // Skip role yang sudah diproses di Phase 1
-      if (['thief', 'blacksmith', 'guardian', 'doctor'].includes(actor.roleId)) continue;
+      console.log(`⚔️ [PHASE 2] Processing ${actor.nickname} (${actor.roleId}) targeting ${target.nickname}`);
+
+      // Skip players that were already involved in Phase 1 (even if their role changed)
+      if (phase1ActorIds.includes(actor.id)) {
+        console.log(`⏭️ [PHASE 2] Skipping ${actor.nickname} because they were involved in Phase 1`);
+        continue;
+      }
 
       switch (actor.roleId) {
         case 'werewolf':
@@ -82,6 +128,7 @@ export async function POST(
           break;
 
         case 'gunner':
+          console.log(`🔫 [GUNNER] ${actor.nickname} shooting ${target.nickname}`);
           deaths.push(target.id);
           reports.push(`*DOR!* Suara tembakan terdengar keras. ${target.nickname} tewas seketika.`);
           break;
@@ -132,6 +179,9 @@ export async function POST(
     // --- PHASE 3: CHAIN REACTIONS (Lover & Orphan) ---
     // Gunakan Set untuk menghindari duplikasi kematian
     let finalDeaths = [...new Set(deaths)];
+
+    console.log('💀 [PHASE 2 END] Deaths collected:', finalDeaths.map(id => players.find(p => p.id === id)?.nickname));
+    console.log('📝 [PHASE 2 END] Reports:', reports);
 
     for (const deathId of finalDeaths) {
       const deadPlayer = players.find(p => p.id === deathId);
