@@ -10,6 +10,7 @@ interface Role {
   name: string;
   alignment: string;
   description: string;
+  nightPriority?: number;
 }
 
 interface RoleCount {
@@ -22,8 +23,8 @@ interface RoleAssignment {
 
 type PageStep = 'selectCounts' | 'assignPlayers';
 
-// Frequent roles ordering
-const ROLE_ORDER = ['villager', 'werewolf', 'seer', 'guardian', 'gunner', 'wolfman'];
+// Frequent roles ordering - berdasarkan night priority
+const ROLE_ORDER = ['werewolf', 'vampire', 'psycopath', 'beholder', 'orphan', 'guardian', 'doctor', 'harlot', 'blacksmith', 'seer', 'gunner', 'great_shaman', 'ghost', 'lycan', 'wolfman', 'sorcerer', 'spellcaster', 'lone_wolf'];
 
 export default function RoleSelectionPage() {
   const params = useParams();
@@ -144,6 +145,19 @@ export default function RoleSelectionPage() {
     setCurrentStep('assignPlayers');
   };
 
+  // Helper function to sort role assignments by night priority
+  const getSortedRoleEntries = (roleCountsObj: RoleCount) => {
+    return Object.entries(roleCountsObj)
+      .filter(([roleId, count]) => count > 0 && roleId !== 'villager')
+      .sort((a, b) => {
+        const roleA = roles.find(r => r.id === a[0]);
+        const roleB = roles.find(r => r.id === b[0]);
+        const priorityA = roleA?.nightPriority ?? 99;
+        const priorityB = roleB?.nightPriority ?? 99;
+        return priorityA - priorityB;
+      });
+  };
+
   const togglePlayerForRole = (roleId: string, playerId: string) => {
     setRoleAssignments(prev => {
       const current = prev[roleId] || [];
@@ -238,30 +252,30 @@ export default function RoleSelectionPage() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <header className="mb-6 sm:mb-8 md:mb-12">
-          <h1 className="text-2xl sm:text-4xl md:text-5xl font-black italic mb-2 break-words">
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-black italic mb-2 break-words">
             Wolf<span className="text-wolf-blood">Master</span>
           </h1>
-          <p className="text-xs sm:text-sm md:text-base text-gray-400">
+          <p className="text-sm sm:text-base md:text-lg text-gray-400">
             {currentStep === 'selectCounts' ? 'Pilih jumlah role' : 'Assign role kepada pemain'}
           </p>
         </header>
 
         {/* Game Info */}
-        <div className="glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl md:rounded-[24px] border border-white/10 mb-4 sm:mb-6 md:mb-8">
+        <div className="glass-card p-4 sm:p-5 md:p-6 rounded-lg sm:rounded-xl md:rounded-[24px] border border-white/10 mb-4 sm:mb-6 md:mb-8">
           <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 text-center">
             <div>
-              <p className="text-gray-400 text-[10px] sm:text-xs md:text-sm mb-1 sm:mb-2">Sesi Game</p>
-              <p className="text-base sm:text-lg md:text-2xl font-bold truncate">{game?.name}</p>
+              <p className="text-gray-400 text-sm sm:text-base md:text-lg mb-1 sm:mb-2">Sesi Game</p>
+              <p className="text-lg sm:text-xl md:text-3xl font-bold truncate">{game?.name}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-[10px] sm:text-xs md:text-sm mb-1 sm:mb-2">Total Pemain</p>
-              <p className="text-base sm:text-lg md:text-2xl font-bold">{playerCount}</p>
+              <p className="text-gray-400 text-sm sm:text-base md:text-lg mb-1 sm:mb-2">Total Pemain</p>
+              <p className="text-lg sm:text-xl md:text-3xl font-bold">{playerCount}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-[10px] sm:text-xs md:text-sm mb-1 sm:mb-2">
+              <p className="text-gray-400 text-sm sm:text-base md:text-lg mb-1 sm:mb-2">
                 {currentStep === 'selectCounts' ? 'Slot Tersedia' : 'Step'}
               </p>
-              <p className={`text-base sm:text-lg md:text-2xl font-bold ${remainingSlots === 0 ? 'text-green-400' : remainingSlots > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
+              <p className={`text-lg sm:text-xl md:text-3xl font-bold ${remainingSlots === 0 ? 'text-green-400' : remainingSlots > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
                 {currentStep === 'selectCounts' 
                   ? remainingSlots > 0 ? `+${remainingSlots}` : remainingSlots === 0 ? '✓' : '✗'
                   : '2 / 2'
@@ -288,7 +302,7 @@ export default function RoleSelectionPage() {
                     window.scrollTo(0, 0);
                     router.back();
                   }}
-                  className="flex-1 glass-card px-6 sm:px-8 py-2 sm:py-4 font-bold hover:bg-white/10 transition-all rounded-lg sm:rounded-[24px] text-sm sm:text-base"
+                  className="flex-1 glass-card px-6 sm:px-8 py-3 sm:py-5 font-bold hover:bg-white/10 transition-all rounded-lg sm:rounded-[24px] text-base sm:text-lg md:text-xl"
                 >
                   Kembali
                 </button>
@@ -298,25 +312,25 @@ export default function RoleSelectionPage() {
                     handleNextStep();
                   }}
                   disabled={totalSelected === 0 || remainingSlots < 0}
-                  className={`flex-1 px-6 sm:px-8 py-2 sm:py-4 font-bold rounded-lg sm:rounded-[24px] transition-all flex items-center justify-center gap-2 text-sm sm:text-base ${
+                  className={`flex-1 px-6 sm:px-8 py-3 sm:py-5 font-bold rounded-lg sm:rounded-[24px] transition-all flex items-center justify-center gap-2 text-base sm:text-lg md:text-xl ${
                     totalSelected > 0 && remainingSlots >= 0
                       ? 'bg-wolf-gold hover:bg-wolf-gold/80'
                       : 'bg-gray-600 cursor-not-allowed'
                   }`}
                 >
-                  <ChevronRight size={16} className="sm:size-5" />
-                  Malam Telah Tiba
+                  <ChevronRight size={20} className="sm:size-6 md:size-7" />
+                  Lanjutkan
                 </button>
               </div>
               {/* Search Bar */}
               <div className="relative mb-4 sm:mb-6 md:mb-8">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={22} />
                 <input
                   type="text"
                   placeholder="Cari role..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-2 sm:py-3 text-sm sm:text-base bg-white/5 border border-white/10 rounded-lg sm:rounded-xl md:rounded-[16px] text-white placeholder-gray-500 focus:outline-none focus:border-wolf-gold/50 transition-all"
+                  className="w-full pl-12 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 md:py-5 text-base sm:text-lg md:text-xl bg-white/5 border border-white/10 rounded-lg sm:rounded-xl md:rounded-[16px] text-white placeholder-gray-500 focus:outline-none focus:border-wolf-gold/50 transition-all"
                 />
               </div>
 
@@ -327,39 +341,39 @@ export default function RoleSelectionPage() {
                     key={role.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="glass-card p-5 sm:p-5 md:p-6 rounded-lg sm:rounded-xl md:rounded-[24px] border border-white/10 hover:border-white/20 transition-all text-center"
+                    className="glass-card p-5 sm:p-5 md:p-6 rounded-lg sm:rounded-xl md:rounded-[24px] border border-white/10 hover:border-white/20 transition-all text-center flex flex-col items-center"
                   >
-                    <div className="mb-4 sm:mb-4">
-                      <h3 className="text-xl sm:text-lg md:text-xl font-bold mb-2">{role.name}</h3>
-                      <p className={`text-base sm:text-sm font-semibold ${
+                    <div className="mb-4 sm:mb-4 w-full text-center">
+                      <h3 className="text-2xl sm:text-2xl md:text-3xl font-bold mb-2 text-center">{role.name}</h3>
+                      <p className={`text-lg sm:text-base md:text-lg font-semibold text-center ${
                         role.alignment === 'Goodside' ? 'text-blue-400' : 'text-red-400'
                       }`}>
                         {role.alignment}
                       </p>
                     </div>
 
-                    <p className="text-sm sm:text-sm text-gray-300 mb-4 sm:mb-4 md:mb-6 line-clamp-3">
+                    <p className="text-base sm:text-base md:text-lg text-gray-300 mb-4 sm:mb-4 md:mb-6 line-clamp-3 text-center">
                       {role.description}
                     </p>
 
                     {/* Counter */}
-                    <div className="flex items-center justify-between bg-white/5 rounded-lg p-2 sm:p-3">
+                    <div className="flex items-center justify-center bg-white/5 rounded-lg p-3 sm:p-4 md:p-5 w-full">
                       <button
                         onClick={() => removeRole(role.id)}
                         disabled={!roleCounts[role.id]}
-                        className="p-1 sm:p-2 hover:bg-white/10 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-2 sm:p-3 md:p-4 hover:bg-white/10 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Minus size={14} className="sm:size-4" />
+                        <Minus size={20} className="sm:size-6 md:size-7" />
                       </button>
-                      <span className="text-lg sm:text-xl font-bold w-8 text-center">
+                      <span className="text-2xl sm:text-3xl md:text-4xl font-bold w-12 text-center">
                         {roleCounts[role.id] || 0}
                       </span>
                       <button
                         onClick={() => addRole(role.id)}
                         disabled={totalSelected >= playerCount}
-                        className="p-1 sm:p-2 hover:bg-white/10 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-2 sm:p-3 md:p-4 hover:bg-white/10 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Plus size={14} className="sm:size-4" />
+                        <Plus size={20} className="sm:size-6 md:size-7" />
                       </button>
                     </div>
                   </motion.div>
@@ -405,7 +419,7 @@ export default function RoleSelectionPage() {
                     window.scrollTo(0, 0);
                     setCurrentStep('selectCounts');
                   }}
-                  className="flex-1 glass-card px-6 sm:px-8 py-2 sm:py-4 font-bold hover:bg-white/10 transition-all rounded-lg sm:rounded-[24px] text-sm sm:text-base"
+                  className="flex-1 glass-card px-6 sm:px-8 py-3 sm:py-5 font-bold hover:bg-white/10 transition-all rounded-lg sm:rounded-[24px] text-base sm:text-lg md:text-xl"
                 >
                   Kembali
                 </button>
@@ -415,7 +429,7 @@ export default function RoleSelectionPage() {
                     handleStartGame();
                   }}
                   disabled={!isRoleAssignmentComplete() || starting}
-                  className={`flex-1 px-6 sm:px-8 py-2 sm:py-4 font-bold rounded-lg sm:rounded-[24px] transition-all flex items-center justify-center gap-2 text-sm sm:text-base ${
+                  className={`flex-1 px-6 sm:px-8 py-3 sm:py-5 font-bold rounded-lg sm:rounded-[24px] transition-all flex items-center justify-center gap-2 text-base sm:text-lg md:text-xl ${
                     isRoleAssignmentComplete()
                       ? 'bg-wolf-blood hover:bg-wolf-blood/80'
                       : 'bg-gray-600 cursor-not-allowed'
@@ -423,22 +437,20 @@ export default function RoleSelectionPage() {
                 >
                   {starting ? (
                     <>
-                      <Loader2 size={16} className="sm:size-5 animate-spin" />
+                      <Loader2 size={20} className="sm:size-6 md:size-7 animate-spin" />
                       Memproses...
                     </>
                   ) : (
                     <>
-                      <Play size={16} className="sm:size-5" />
-                      Malam Telah Tiba
+                      <Play size={20} className="sm:size-6 md:size-7" />
+                      Lanjutkan
                     </>
                   )}
                 </button>
               </div>
               {/* Role Assignment Sections */}
               <div className="space-y-4 sm:space-y-5 md:space-y-6">
-                {Object.entries(roleCounts).map(([roleId, count]) => {
-                  if (count === 0 || roleId === 'villager') return null;
-                  
+                {getSortedRoleEntries(roleCounts).map(([roleId, count]) => {
                   const role = roles.find(r => r.id === roleId);
                   const assignedPlayers = roleAssignments[roleId] || [];
                   const availablePlayers = game?.players?.filter(
@@ -450,12 +462,12 @@ export default function RoleSelectionPage() {
                       key={roleId}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="glass-card p-5 sm:p-5 md:p-6 rounded-lg sm:rounded-xl md:rounded-[24px] border border-white/10"
+                      className="glass-card p-5 sm:p-6 md:p-7 rounded-lg sm:rounded-xl md:rounded-[24px] border border-white/10"
                     >
                       <div className="mb-4 sm:mb-5 md:mb-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2 sm:mb-2 text-center sm:text-left">
-                          <h3 className="text-xl sm:text-lg md:text-2xl font-bold">{role?.name}</h3>
-                          <span className={`px-3 sm:px-3 py-2 sm:py-1 rounded-full text-base sm:text-sm font-bold whitespace-nowrap ${
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center gap-2 mb-2 sm:mb-3 text-center">
+                          <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center">{role?.name}</h3>
+                          <span className={`px-4 sm:px-5 md:px-6 py-2 sm:py-3 md:py-3 rounded-full text-lg sm:text-xl md:text-2xl font-bold whitespace-nowrap ${
                             assignedPlayers.length === count
                               ? 'bg-green-500/20 text-green-400'
                               : 'bg-yellow-500/20 text-yellow-400'
@@ -463,13 +475,13 @@ export default function RoleSelectionPage() {
                             {assignedPlayers.length} / {count}
                           </span>
                         </div>
-                        <p className="text-sm sm:text-sm text-gray-400">
+                        <p className="text-base sm:text-lg md:text-xl text-gray-400 text-center">
                           {role?.description}
                         </p>
                       </div>
 
                       {/* Player Selection Grid */}
-                      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-2 sm:gap-3">
+                      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-5">
                         {game?.players?.map((player: any) => {
                           const isAssigned = assignedPlayers.includes(player.id);
                           const isAssignedToOtherRole = Object.entries(roleAssignments).some(
@@ -483,7 +495,7 @@ export default function RoleSelectionPage() {
                               whileTap={{ scale: 0.95 }}
                               onClick={() => togglePlayerForRole(roleId, player.id)}
                               disabled={isDisabled}
-                              className={`p-3 sm:p-3 md:p-4 rounded-lg sm:rounded-xl md:rounded-[16px] border-2 transition-all text-center font-bold text-base sm:text-base ${
+                              className={`p-4 sm:p-5 md:p-6 rounded-lg sm:rounded-xl md:rounded-[16px] border-2 transition-all text-center font-bold text-lg sm:text-xl md:text-2xl ${
                                 isAssigned
                                   ? 'border-wolf-blood bg-wolf-blood/10 text-white'
                                   : isAssignedToOtherRole
@@ -491,9 +503,9 @@ export default function RoleSelectionPage() {
                                   : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed'
                               }`}
                             >
-                              <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center justify-center gap-2 w-full">
                                 <span className="truncate flex-1">{player.nickname}</span>
-                                {isAssigned && <Check size={18} className="sm:size-5 text-wolf-blood flex-shrink-0" />}
+                                {isAssigned && <Check size={24} className="sm:size-6 md:size-7 text-wolf-blood flex-shrink-0" />}
                               </div>
                             </motion.button>
                           );

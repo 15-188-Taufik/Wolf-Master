@@ -47,6 +47,7 @@ export async function POST(
     let reports: string[] = [];
     let blacksmithActive = false;
     let silencedPlayers: string[] = [];
+    let reportedDeaths: Set<string> = new Set(); // Track reported deaths to avoid duplicates
 
     // --- PHASE 1: SETUP & MANIPULATION (Thief, Blacksmith, Protection) ---
     let phase1ActorIds: string[] = []; // Track which players were involved in Phase 1
@@ -72,7 +73,10 @@ export async function POST(
         case 'blacksmith':
           phase1ActorIds.push(actor.id);
           blacksmithActive = true;
-          reports.push("Blacksmith menyebarkan biji besi, Werewolf akan kesulitan masuk.");
+          if (!reportedDeaths.has('blacksmith_active')) {
+            reports.push("Blacksmith menyebarkan biji besi, Werewolf akan kesulitan masuk.");
+            reportedDeaths.add('blacksmith_active');
+          }
           break;
 
         case 'guardian':
@@ -118,25 +122,40 @@ export async function POST(
         case 'wolfman':
         case 'lone_wolf':
           if (blacksmithActive) {
-            reports.push("Werewolf mencoba menyerang, namun terhalang oleh biji besi!");
+            if (!reportedDeaths.has(`blacksmith_block_${target.id}`)) {
+              reports.push("Werewolf mencoba menyerang, namun terhalang oleh biji besi!");
+              reportedDeaths.add(`blacksmith_block_${target.id}`);
+            }
           } else if (!protections.includes(target.id)) {
             deaths.push(target.id);
-            reports.push(`${target.nickname} tewas mengenaskan akibat terkaman serigala.`);
+            if (!reportedDeaths.has(`werewolf_kill_${target.id}`)) {
+              reports.push(`${target.nickname} tewas mengenaskan akibat terkaman serigala.`);
+              reportedDeaths.add(`werewolf_kill_${target.id}`);
+            }
           } else {
-            reports.push(`Serangan serigala pada ${target.nickname} berhasil digagalkan oleh pelindung!`);
+            if (!reportedDeaths.has(`werewolf_saved_${target.id}`)) {
+              reports.push(`Serangan serigala pada ${target.nickname} berhasil digagalkan oleh pelindung!`);
+              reportedDeaths.add(`werewolf_saved_${target.id}`);
+            }
           }
           break;
 
         case 'gunner':
           console.log(`🔫 [GUNNER] ${actor.nickname} shooting ${target.nickname}`);
           deaths.push(target.id);
-          reports.push(`*DOR!* Suara tembakan terdengar keras. ${target.nickname} tewas seketika.`);
+          if (!reportedDeaths.has(`gunner_kill_${target.id}`)) {
+            reports.push(`*DOR!* Suara tembakan terdengar keras. ${target.nickname} tewas seketika.`);
+            reportedDeaths.add(`gunner_kill_${target.id}`);
+          }
           break;
 
         case 'psycopath':
           if (!protections.includes(target.id)) {
             deaths.push(target.id);
-            reports.push(`Seorang psikopat telah menghabisi ${target.nickname} dengan kejam.`);
+            if (!reportedDeaths.has(`psycopath_kill_${target.id}`)) {
+              reports.push(`Seorang psikopat telah menghabisi ${target.nickname} dengan kejam.`);
+              reportedDeaths.add(`psycopath_kill_${target.id}`);
+            }
           }
           break;
 
@@ -144,10 +163,16 @@ export async function POST(
           if (!protections.includes(target.id)) {
             if (target.roleId === 'villager') {
               await prisma.player.update({ where: { id: target.id }, data: { roleId: 'vampire' } });
-              reports.push(`${target.nickname} merasa lemas dan menemukan bekas gigitan di leher.`);
+              if (!reportedDeaths.has(`vampire_turn_${target.id}`)) {
+                reports.push(`${target.nickname} merasa lemas dan menemukan bekas gigitan di leher.`);
+                reportedDeaths.add(`vampire_turn_${target.id}`);
+              }
             } else {
               deaths.push(target.id);
-              reports.push(`${target.nickname} ditemukan tewas kehabisan darah.`);
+              if (!reportedDeaths.has(`vampire_kill_${target.id}`)) {
+                reports.push(`${target.nickname} ditemukan tewas kehabisan darah.`);
+                reportedDeaths.add(`vampire_kill_${target.id}`);
+              }
             }
           }
           break;
@@ -156,22 +181,34 @@ export async function POST(
           const targetIsWolf = ['werewolf', 'wolfman', 'lone_wolf'].includes(target.roleId);
           if (targetIsWolf) {
             deaths.push(actor.id);
-            reports.push(`Harlot tewas karena nekat mengunjungi rumah serigala.`);
+            if (!reportedDeaths.has(`harlot_death_${actor.id}`)) {
+              reports.push(`Harlot tewas karena nekat mengunjungi rumah serigala.`);
+              reportedDeaths.add(`harlot_death_${actor.id}`);
+            }
           } else {
             // Harlot selamat jika menginap di rumah orang baik
             protections.push(actor.id);
-            reports.push(`Harlot sedang tidak berada di rumahnya sendiri malam ini.`);
+            if (!reportedDeaths.has(`harlot_safe_${actor.id}`)) {
+              reports.push(`Harlot sedang tidak berada di rumahnya sendiri malam ini.`);
+              reportedDeaths.add(`harlot_safe_${actor.id}`);
+            }
           }
           break;
 
         case 'seer':
         case 'sorcerer':
-          reports.push(`${actor.role.name} menerawang ${target.nickname}: Terlihat aura **${target.role.alignment}**.`);
+          if (!reportedDeaths.has(`${actor.roleId}_see_${target.id}`)) {
+            reports.push(`${actor.role.name} menerawang ${target.nickname}: Terlihat aura **${target.role.alignment}**.`);
+            reportedDeaths.add(`${actor.roleId}_see_${target.id}`);
+          }
           break;
 
         case 'spellcaster':
           silencedPlayers.push(target.id);
-          reports.push(`${target.nickname} telah dibungkam secara magis (Tidak bisa bicara besok).`);
+          if (!reportedDeaths.has(`spellcaster_silence_${target.id}`)) {
+            reports.push(`${target.nickname} telah dibungkam secara magis (Tidak bisa bicara besok).`);
+            reportedDeaths.add(`spellcaster_silence_${target.id}`);
+          }
           break;
       }
     }
@@ -192,7 +229,10 @@ export async function POST(
         const partner = players.find(p => p.id === deadPlayer.linkedToId);
         if (partner && partner.isAlive && !finalDeaths.includes(partner.id)) {
           finalDeaths.push(partner.id);
-          reports.push(`${partner.nickname} tewas karena patah hati ditinggal pasangannya.`);
+          if (!reportedDeaths.has(`lover_death_${partner.id}`)) {
+            reports.push(`${partner.nickname} tewas karena patah hati ditinggal pasangannya.`);
+            reportedDeaths.add(`lover_death_${partner.id}`);
+          }
         }
       }
 
@@ -203,7 +243,10 @@ export async function POST(
           where: { id: orphan.id },
           data: { roleId: 'werewolf' }
         });
-        reports.push(`Seseorang kehilangan pelindungnya dan berubah menjadi buas!`);
+        if (!reportedDeaths.has(`orphan_transform_${orphan.id}`)) {
+          reports.push(`Seseorang kehilangan pelindungnya dan berubah menjadi buas!`);
+          reportedDeaths.add(`orphan_transform_${orphan.id}`);
+        }
       }
     }
 

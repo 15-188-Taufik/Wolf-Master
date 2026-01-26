@@ -113,7 +113,10 @@ export default function ModeratorDashboard() {
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tighter italic break-words">Wolf<span className="text-wolf-blood">Master</span></h1>
           <div className="flex flex-col xs:flex-row gap-2 sm:gap-3 md:gap-4 w-full sm:w-auto">
             <button
-              onClick={() => setActiveTab(activeTab === 'siang' ? 'malam' : 'siang')}
+              onClick={() => {
+                window.scrollTo(0, 0);
+                setActiveTab(activeTab === 'siang' ? 'malam' : 'siang');
+              }}
               className={`px-3 sm:px-6 md:px-8 py-2 md:py-3 rounded-lg sm:rounded-xl md:rounded-[16px] text-xs sm:text-sm md:text-base font-black transition-all flex items-center justify-center gap-2 ${
                 activeTab === 'siang'
                   ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
@@ -139,14 +142,14 @@ export default function ModeratorDashboard() {
         {/* --- MORNING REPORT --- */}
         <AnimatePresence>
           {morningReport.length > 0 && (
-            <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass-card p-4 sm:p-5 md:p-6 rounded-xl sm:rounded-2xl md:rounded-[32px] border-2 border-wolf-gold/30 mb-6 sm:mb-8 md:mb-10 bg-wolf-gold/5">
-              <div className="flex justify-between items-start sm:items-center mb-3 sm:mb-4 gap-2">
-                <h2 className="text-wolf-gold font-black italic flex items-center gap-2 uppercase tracking-tighter text-base sm:text-lg md:text-xl"><Info size={18}/> RINGKASAN RITUAL</h2>
+            <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass-card p-4 sm:p-5 md:p-6 rounded-xl sm:rounded-2xl md:rounded-[32px] border-2 border-wolf-gold/30 mb-6 sm:mb-8 md:mb-10 bg-wolf-gold/5 text-center">
+              <div className="flex flex-col items-center justify-center mb-3 sm:mb-4 gap-2">
+                <h2 className="text-wolf-gold font-black italic flex items-center gap-2 uppercase tracking-tighter text-base sm:text-lg md:text-xl text-center"><Info size={18}/> RINGKASAN RITUAL</h2>
                 <button onClick={() => setMorningReport([])}><RefreshCcw size={16} className="text-gray-500"/></button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
                 {morningReport.map((msg, i) => (
-                  <div key={i} className="bg-black/40 p-2 sm:p-3 md:p-4 rounded-lg sm:rounded-xl md:rounded-2xl border border-white/5 text-xs sm:text-sm flex items-center gap-2 sm:gap-3"><CheckCircle2 className="text-wolf-gold flex-shrink-0" size={14}/> {msg}</div>
+                  <div key={i} className="bg-black/40 p-2 sm:p-3 md:p-4 rounded-lg sm:rounded-xl md:rounded-2xl border border-white/5 text-xs sm:text-sm flex items-center justify-center gap-2 sm:gap-3 text-center"><CheckCircle2 className="text-wolf-gold flex-shrink-0" size={14}/> {msg}</div>
                 ))}
               </div>
             </motion.div>
@@ -161,16 +164,27 @@ export default function ModeratorDashboard() {
                 /* --- TAB SIANG: PLAYER CARDS --- */
                 <motion.div key="siang" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
                   {game?.players?.map((p: any) => (
-                    <div key={p.id} className={`glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl md:rounded-[24px] lg:rounded-[32px] border-t border-white/10 transition-all ${p.isAlive ? 'shadow-lg' : 'opacity-20 grayscale'}`}>
-                      <div className="flex justify-between items-start gap-2 sm:gap-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-base sm:text-lg md:text-2xl font-bold break-words">{p.nickname}</h3>
-                          <span className="text-[10px] sm:text-xs md:text-sm font-black uppercase text-wolf-gold mt-1 block">{p.role.name}</span>
+                    <div key={p.id} className={`glass-card p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl md:rounded-[24px] lg:rounded-[32px] border-t border-white/10 transition-all text-center ${p.isAlive ? 'shadow-lg' : 'opacity-20 grayscale'}`}>
+                      <div className="flex flex-col items-center gap-2 sm:gap-3">
+                        <div className="flex-1 min-w-0 w-full">
+                          <h3 className="text-lg sm:text-lg md:text-2xl font-bold break-words text-center">{p.nickname}</h3>
+                          <span className="text-sm sm:text-xs md:text-sm font-black uppercase text-wolf-gold mt-1 block text-center">{p.role.name}</span>
                         </div>
                         {p.isAlive && (
                           <motion.button
                             whileTap={{ scale: 0.95 }}
-                            onClick={() => handleKillPlayer(p.id)}
+                            onClick={() => {
+                              if (selectedVictim === p.id) {
+                                const confirmed = window.confirm(`Apakah anda ingin membunuh "${p.nickname}"?`);
+                                if (confirmed) {
+                                  handleKillPlayer(p.id);
+                                } else {
+                                  setSelectedVictim(null);
+                                }
+                              } else {
+                                setSelectedVictim(p.id);
+                              }
+                            }}
                             className={`flex-shrink-0 p-2 sm:p-2.5 md:p-3 rounded-lg sm:rounded-lg md:rounded-xl lg:rounded-2xl transition-all min-h-[40px] min-w-[40px] flex items-center justify-center ${
                               selectedVictim === p.id
                                 ? 'bg-red-600 text-white'
@@ -226,25 +240,25 @@ export default function ModeratorDashboard() {
           <aside className="space-y-4 sm:space-y-6">
              {/* TIMER CONTROL */}
              <div className="glass-card p-8 rounded-[36px] border border-white/10 bg-white/5 text-center">
-                <h2 className="text-[10px] font-black mb-4 uppercase tracking-widest text-gray-500">Discussion Timer</h2>
-                <div className={`text-6xl font-black mb-6 tracking-tighter ${timeLeft < 30 ? 'text-red-500 animate-pulse' : 'text-white'}`}>{Math.floor(timeLeft/60)}:{(timeLeft%60).toString().padStart(2,'0')}</div>
+                <h2 className="text-xs sm:text-sm font-black mb-4 uppercase tracking-widest text-gray-500 text-center">Discussion Timer</h2>
+                <div className={`text-5xl sm:text-6xl font-black mb-6 tracking-tighter text-center ${timeLeft < 30 ? 'text-red-500 animate-pulse' : 'text-white'}`}>{Math.floor(timeLeft/60)}:{(timeLeft%60).toString().padStart(2,'0')}</div>
                 <div className="flex gap-2 justify-center mb-6">
-                  <button onClick={() => setTimeLeft(prev => Math.max(0, prev - 30))} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-all"><Minus size={18}/></button>
-                  <button onClick={() => setTimeLeft(prev => prev + 30)} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-all"><Plus size={18}/></button>
+                  <button onClick={() => setTimeLeft(prev => Math.max(0, prev - 30))} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-all"><Minus size={20}/></button>
+                  <button onClick={() => setTimeLeft(prev => prev + 30)} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-all"><Plus size={20}/></button>
                 </div>
-                <button onClick={() => setTimerActive(!timerActive)} className={`w-full py-4 rounded-2xl font-black text-xs transition-all ${timerActive ? 'bg-orange-500/20 text-orange-500' : 'bg-green-500/20 text-green-500'}`}>{timerActive ? 'PAUSE' : 'START'}</button>
+                <button onClick={() => setTimerActive(!timerActive)} className={`w-full py-4 rounded-2xl font-black text-sm sm:text-base transition-all text-center ${timerActive ? 'bg-orange-500/20 text-orange-500' : 'bg-green-500/20 text-green-500'}`}>{timerActive ? 'PAUSE' : 'START'}</button>
              </div>
 
              {/* HISTORY */}
-             <div className="glass-card p-6 rounded-[32px] border border-white/10 max-h-[300px] overflow-y-auto custom-scrollbar">
-                <h2 className="text-[10px] font-black mb-4 uppercase tracking-widest text-gray-400 flex items-center gap-2"><History size={14}/> Ritual Log</h2>
+             <div className="glass-card p-6 rounded-[32px] border border-white/10 max-h-[300px] overflow-y-auto custom-scrollbar text-center">
+                <h2 className="text-xs sm:text-sm font-black mb-4 uppercase tracking-widest text-gray-400 flex items-center justify-center gap-2 text-center"><History size={16}/> Ritual Log</h2>
                 <div className="space-y-3">
                   {game?.logs && game.logs.length > 0 ? (
                     game.logs.slice().reverse().map((log: any) => (
-                      <div key={log.id} className="text-[10px] border-l-2 border-wolf-gold pl-3 py-1 text-gray-400 leading-relaxed">{log.message}</div>
+                      <div key={log.id} className="text-xs sm:text-sm border-l-2 border-wolf-gold pl-3 py-1 text-gray-400 leading-relaxed text-center">{log.message}</div>
                     ))
                   ) : (
-                    <div className="text-[10px] text-gray-500">Belum ada log</div>
+                    <div className="text-xs sm:text-sm text-gray-500 text-center">Belum ada log</div>
                   )}
                 </div>
              </div>

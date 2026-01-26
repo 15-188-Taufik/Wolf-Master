@@ -68,10 +68,15 @@ export default function Home() {
         </header>
 
         <div className="space-y-4 sm:space-y-5 md:space-y-6 mb-6 block md:hidden">
+          {/* MOBILE: Riwayat Sesi at top */}
+          <div className="glass-card p-4 sm:p-5 rounded-xl sm:rounded-2xl border border-white/10">
+            <h2 className="text-sm sm:text-base font-black mb-3 sm:mb-4 flex items-center gap-2 uppercase tracking-widest text-gray-400"><LayoutGrid size={16}/> Riwayat Sesi</h2>
+            <GameListManager /> 
+          </div>
           {/* MOBILE: Quick Add at top */}
           <div className="glass-card p-4 sm:p-5 rounded-xl sm:rounded-2xl border border-white/10">
-            <h2 className="text-xs sm:text-sm font-black mb-3 sm:mb-4 flex items-center gap-2 uppercase tracking-widest text-gray-400"><UserCheck size={14}/> Quick Add</h2>
-            <div className="flex flex-wrap gap-2">{masterPlayers.map(mp => <button key={mp.id} onClick={() => addPlayer(mp.nickname)} className="px-2 sm:px-3 py-1 text-[10px] sm:text-xs bg-white/5 rounded-full hover:bg-white/20">+ {mp.nickname}</button>)}</div>
+            <h2 className="text-sm sm:text-base font-black mb-3 sm:mb-4 flex items-center gap-2 uppercase tracking-widest text-gray-400"><UserCheck size={16}/> Quick Add</h2>
+            <div className="flex flex-wrap gap-4 sm:gap-5">{masterPlayers.map(mp => <button key={mp.id} onClick={() => addPlayer(mp.nickname)} className="px-6 sm:px-8 py-4 sm:py-5 text-lg sm:text-2xl bg-white/5 rounded-full hover:bg-white/20 min-h-[70px] flex items-center justify-center font-semibold">+ {mp.nickname}</button>)}</div>
           </div>
         </div>
 
@@ -85,7 +90,7 @@ export default function Home() {
             
             <div className="glass-card p-4 sm:p-5 md:p-6 rounded-xl sm:rounded-2xl md:rounded-[32px] border border-white/10 hidden md:block">
               <h2 className="text-xs sm:text-sm font-black mb-3 sm:mb-4 flex items-center gap-2 uppercase tracking-widest text-gray-400"><UserCheck size={14}/> Quick Add</h2>
-              <div className="flex flex-wrap gap-2">{masterPlayers.map(mp => <button key={mp.id} onClick={() => addPlayer(mp.nickname)} className="px-2 sm:px-3 py-1 text-[10px] sm:text-xs bg-white/5 rounded-full hover:bg-white/20">+ {mp.nickname}</button>)}</div>
+              <div className="flex flex-wrap gap-4 md:gap-5">{masterPlayers.map(mp => <button key={mp.id} onClick={() => addPlayer(mp.nickname)} className="px-6 md:px-8 py-4 md:py-5 text-lg md:text-2xl bg-white/5 rounded-full hover:bg-white/20 min-h-[70px] flex items-center justify-center font-semibold">+ {mp.nickname}</button>)}</div>
             </div>
           </div>
 

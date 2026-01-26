@@ -182,6 +182,9 @@ export default function NightPhaseModeration({
     if (currentRoleIdx < nightRoles.length - 1) {
       setCurrentRoleIdx(currentRoleIdx + 1);
       setSelectedTarget(null);
+    } else if (currentRoleIdx === nightRoles.length - 1) {
+      // For last role, allow skip and clear selected target
+      setSelectedTarget(null);
     }
   };
 
@@ -210,9 +213,9 @@ export default function NightPhaseModeration({
       className="space-y-6"
     >
       {/* Progress Bar */}
-      <div className="glass-card p-6 rounded-[24px] border border-white/10">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold flex items-center gap-2">
+      <div className="glass-card p-6 rounded-[24px] border border-white/10 text-center">
+        <div className="flex flex-col items-center justify-center mb-4">
+          <h2 className="text-lg font-bold flex items-center justify-center gap-2">
             <Moon size={20} className="text-wolf-gold" />
             Ritual Malam: {currentRoleIdx + 1} / {nightRoles.length}
           </h2>
@@ -236,10 +239,10 @@ export default function NightPhaseModeration({
         className="glass-card p-8 rounded-[32px] border-2 border-wolf-gold/30 bg-gradient-to-br from-wolf-gold/5 to-transparent"
       >
         <div className="mb-8 text-center">
-          <h1 className="text-4xl md:text-5xl font-black mb-2 text-wolf-gold italic">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-black mb-2 text-wolf-gold italic">
             {currentRole?.id === 'werewolf' ? 'BERBURU MALAM' : currentRole?.name}
           </h1>
-          <p className="text-gray-400">
+          <p className="text-sm sm:text-base md:text-lg text-gray-400">
             {currentRole?.id === 'werewolf' 
               ? `Werewolf & Wolfman - Pilih 1 target`
               : playersWithRole.length > 1
@@ -250,15 +253,15 @@ export default function NightPhaseModeration({
 
         {/* Players with this role */}
         {playersWithRole.length > 0 && (
-          <div className="mb-8">
-            <p className="text-sm font-bold text-gray-400 mb-3">PEMAIN DENGAN ROLE INI:</p>
-            <div className="flex flex-wrap gap-2">
+          <div className="mb-8 text-center">
+            <p className="text-base sm:text-lg md:text-xl font-bold text-gray-400 mb-3 text-center">PEMAIN DENGAN ROLE INI:</p>
+            <div className="flex flex-wrap gap-2 justify-center">
               {playersWithRole.map(p => (
                 <div
                   key={p.id}
-                  className="px-4 py-2 bg-wolf-gold/10 border border-wolf-gold/50 rounded-full font-bold text-wolf-gold flex items-center gap-2"
+                  className="px-4 py-2 bg-wolf-gold/10 border border-wolf-gold/50 rounded-full font-bold text-wolf-gold flex items-center gap-2 text-center text-sm sm:text-base"
                 >
-                  <Users size={14} />
+                  <Users size={16} />
                   {p.nickname}
                 </div>
               ))}
@@ -267,12 +270,12 @@ export default function NightPhaseModeration({
         )}
 
         {/* Instructions */}
-        <div className="bg-white/5 border border-white/10 rounded-[20px] p-6 mb-8">
-          <div className="flex gap-3 mb-4">
-            <AlertCircle className="text-wolf-gold flex-shrink-0" size={20} />
-            <div>
-              <p className="font-bold mb-2">Instruksi:</p>
-              <p className="text-sm text-gray-300">
+        <div className="bg-white/5 border border-white/10 rounded-[20px] p-6 mb-8 text-center">
+          <div className="flex flex-col items-center gap-3 mb-4">
+            <AlertCircle className="text-wolf-gold flex-shrink-0" size={24} />
+            <div className="text-center">
+              <p className="font-bold mb-2 text-center text-base sm:text-lg">Instruksi:</p>
+              <p className="text-base sm:text-lg md:text-xl text-gray-300 text-center">
                 {currentRole?.id === 'werewolf' 
                   ? 'WEREWOLF & WOLFMAN BUKA MATA! Silakan pilih 1 target pemain untuk diburu. Atau lewati jika ingin tidak memburu.'
                   : currentRole?.id === 'gunner'
@@ -285,8 +288,8 @@ export default function NightPhaseModeration({
 
         {/* Target Selection Grid */}
         <div className="mb-8">
-          <p className="text-sm font-bold text-gray-400 mb-4 flex items-center gap-2">
-            <Target size={14} />
+          <p className="text-base sm:text-lg md:text-xl font-bold text-gray-400 mb-4 flex items-center justify-center gap-2 text-center">
+            <Target size={18} />
             PILIH TARGET:
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -295,19 +298,19 @@ export default function NightPhaseModeration({
                 key={target.id}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSelectTarget(target.id)}
-                className={`p-4 rounded-[16px] border-2 transition-all text-left font-bold ${
+                className={`p-4 sm:p-5 md:p-6 rounded-[16px] border-2 transition-all text-center font-bold text-sm sm:text-base md:text-lg ${
                   selectedTarget === target.id
                     ? 'border-wolf-blood bg-wolf-blood/10 text-wolf-blood'
                     : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
                 }`}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-center gap-2">
                   <span>{target.nickname}</span>
                   {selectedTarget === target.id && (
-                    <Check size={20} className="text-wolf-blood" />
+                    <Check size={22} className="text-wolf-blood" />
                   )}
                 </div>
-                <p className="text-xs text-gray-400 mt-1">{target.role.name}</p>
+                <p className="text-sm sm:text-base md:text-lg text-gray-400 mt-1 text-center">{target.role.name}</p>
               </motion.button>
             ))}
           </div>
@@ -317,14 +320,15 @@ export default function NightPhaseModeration({
         <div className="flex gap-4">
           <button
             onClick={handleSkipRole}
-            className="flex-1 px-6 py-3 bg-white/5 border border-white/10 rounded-[16px] font-bold hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+            className="flex-1 px-6 py-3 sm:py-4 bg-white/5 border border-white/10 rounded-[16px] font-bold hover:bg-white/10 transition-all flex items-center justify-center gap-2 text-center text-base sm:text-lg md:text-xl"
           >
-            <SkipForward size={18} />
+            <SkipForward size={20} />
             {currentRole?.id === 'werewolf' || currentRole?.id === 'gunner' ? 'Tidak ' + (currentRole?.id === 'werewolf' ? 'Berburu' : 'Menembak') : 'Lewati'}
           </button>
 
           <button
             onClick={() => {
+              window.scrollTo(0, 0);
               console.log(`📌 [BUTTON CLICK] isLastRole: ${isLastRole}, selectedTarget: ${selectedTarget}, currentRole: ${currentRole?.id}`);
               if (isLastRole) {
                 console.log(`📌 [BUTTON CLICK] Calling handleFinish`);
@@ -335,13 +339,13 @@ export default function NightPhaseModeration({
               }
             }}
             disabled={!selectedTarget}
-            className={`flex-1 px-6 py-3 rounded-[16px] font-bold transition-all flex items-center justify-center gap-2 ${
+            className={`flex-1 px-6 py-3 sm:py-4 rounded-[16px] font-bold transition-all flex items-center justify-center gap-2 text-center text-base sm:text-lg md:text-xl ${
               selectedTarget
                 ? 'bg-wolf-blood hover:bg-wolf-blood/80'
                 : 'bg-gray-600 cursor-not-allowed'
             }`}
           >
-            <ChevronRight size={18} />
+            <ChevronRight size={20} />
             {isLastRole ? 'Waktunya Pagi' : 'Lanjut'}
           </button>
         </div>
