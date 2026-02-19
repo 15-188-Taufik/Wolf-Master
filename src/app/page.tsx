@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Plus, LayoutGrid, UserCheck } from 'lucide-react';
+import { Plus, LayoutGrid, UserCheck, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import GameListManager from '@/components/game/GameListManager';
 import ToastNotification from '@/components/game/ToastNotification';
@@ -13,6 +13,7 @@ export default function Home() {
   const [creating, setCreating] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastKey, setToastKey] = useState(0);
 
   useEffect(() => { fetch('/api/players').then(res => res.json()).then(setMasterPlayers); }, []);
 
@@ -29,6 +30,7 @@ export default function Home() {
   const addPlayerFromQuickAdd = (nickname: string) => {
     const added = addPlayer(nickname);
     setToast(added ? { message: 'Pemain ditambahkan', type: 'success' } : { message: 'Pemain sudah ditambahkan', type: 'info' });
+    setToastKey((k) => k + 1);
     setToastVisible(true);
   };
 
@@ -75,8 +77,8 @@ export default function Home() {
         {/* Sticky header: tombol Mulai Game Baru tetap terlihat saat scroll */}
         <header className="sticky top-0 z-50 -mx-3 -mt-3 px-3 pt-3 sm:-mx-4 sm:-mt-4 sm:px-4 sm:pt-4 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 lg:-mx-12 lg:-mt-12 lg:px-12 lg:pt-12 pb-2 sm:pb-3 bg-night-gradient/95 backdrop-blur-sm mb-4 sm:mb-6 md:mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-black italic break-words">Wolf<span className="text-wolf-blood">Master</span></h1>
-          <button onClick={createGame} disabled={creating || players.length < 5} className="glass-card px-4 sm:px-6 md:px-8 py-2 sm:py-3 md:py-4 font-black hover:bg-white/10 transition-all text-xs sm:text-sm md:text-base w-full sm:w-auto disabled:opacity-50 shrink-0">
-            {creating ? "MEMPROSES..." : "MULAI GAME BARU"}
+          <button onClick={createGame} disabled={creating || players.length < 5} className="glass-card px-4 sm:px-6 md:px-8 py-2 sm:py-3 md:py-4 font-black hover:bg-white/10 transition-all text-xs sm:text-sm md:text-base w-full sm:w-auto disabled:opacity-50 shrink-0 flex items-center justify-center gap-2">
+            {creating ? <><Loader2 className="animate-spin" size={18} /> MEMPROSES...</> : "MULAI GAME BARU"}
           </button>
         </header>
 
@@ -116,6 +118,7 @@ export default function Home() {
 
       {toast && (
         <ToastNotification
+          key={toastKey}
           message={toast.message}
           type={toast.type}
           isVisible={toastVisible}

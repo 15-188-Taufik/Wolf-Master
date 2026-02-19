@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Plus, Minus, Play, Loader2, ChevronRight, Check, Search } from 'lucide-react';
+import { Plus, Minus, Play, Loader2, ChevronRight, Check, Search, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Role {
@@ -23,8 +23,23 @@ interface RoleAssignment {
 
 type PageStep = 'selectCounts' | 'assignPlayers';
 
-// Frequent roles ordering - berdasarkan night priority
-const ROLE_ORDER = ['werewolf', 'vampire', 'psycopath', 'beholder', 'orphan', 'guardian', 'doctor', 'harlot', 'blacksmith', 'seer', 'gunner', 'great_shaman', 'ghost', 'lycan', 'wolfman', 'sorcerer', 'spellcaster', 'lone_wolf'];
+// --- URUTAN ROLE (PRIORITAS) ---
+const ROLE_ORDER = [
+  'werewolf',
+  'wolfman',
+  'seer',
+  'guardian',
+  'gunner',
+  'doctor',
+  'lycan',
+  'orphan',
+  'great_shaman',
+  'ghost',
+  'harlot',
+  'disease',
+  'psycopath',
+  'lover'
+];
 
 export default function RoleSelectionPage() {
   const params = useParams();
@@ -43,30 +58,20 @@ export default function RoleSelectionPage() {
   // Sort and filter roles
   const sortedRoles = useMemo(() => {
     if (!roles.length) return [];
-    
-    // Separate villager from other roles
-    const villagerRole = roles.find(r => r.id === 'villager');
     const otherRoles = roles.filter(r => r.id !== 'villager');
     
-    // Sort other roles by ROLE_ORDER
     const sorted = otherRoles.sort((a, b) => {
       const aIdx = ROLE_ORDER.indexOf(a.id);
       const bIdx = ROLE_ORDER.indexOf(b.id);
-      
-      // If in ROLE_ORDER, sort by position
       if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-      // If only a is in ROLE_ORDER, a comes first
       if (aIdx !== -1) return -1;
-      // If only b is in ROLE_ORDER, b comes first
       if (bIdx !== -1) return 1;
-      // Otherwise, sort alphabetically
       return a.name.localeCompare(b.name);
     });
     
     return sorted;
   }, [roles]);
 
-  // Filter roles by search
   const filteredRoles = useMemo(() => {
     return sortedRoles.filter(role =>
       role.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -74,40 +79,30 @@ export default function RoleSelectionPage() {
     );
   }, [sortedRoles, searchQuery]);
 
-  // Load game data and available roles
   useEffect(() => {
     const fetchData = async () => {
       try {
-        console.log(`[RoleSelection] Fetching game data for ID: ${gameId}`);
-        
-        // Get game data
-        const gameRes = await fetch(`/api/game/${gameId}`);
-        if (!gameRes.ok) {
-          throw new Error(`Failed to fetch game: ${gameRes.status} ${gameRes.statusText}`);
-        }
-        const gameData = await gameRes.json();
-        console.log('[RoleSelection] Game data:', gameData);
-        setGame(gameData);
+        const [gameRes, rolesRes] = await Promise.all([
+          fetch(`/api/game/${gameId}`),
+          fetch('/api/roles')
+        ]);
 
-        // Get roles
-        console.log('[RoleSelection] Fetching roles...');
-        const rolesRes = await fetch('/api/roles');
-        if (!rolesRes.ok) {
-          throw new Error(`Failed to fetch roles: ${rolesRes.status} ${rolesRes.statusText}`);
-        }
+        if (!gameRes.ok || !rolesRes.ok) throw new Error("Failed to fetch data");
+
+        const gameData = await gameRes.json();
         const rolesData = await rolesRes.json();
-        console.log('[RoleSelection] Roles data:', rolesData);
+
+        setGame(gameData);
         setRoles(rolesData);
 
-        // Initialize role counts - exclude villager as default
         const initialCounts: RoleCount = {};
         rolesData.forEach((role: Role) => {
           initialCounts[role.id] = 0;
         });
         setRoleCounts(initialCounts);
       } catch (error) {
-        console.error('[RoleSelection] Error fetching data:', error);
-        alert(`Error loading data: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(error);
+        alert("Gagal memuat data game.");
       } finally {
         setLoading(false);
       }
@@ -119,22 +114,15 @@ export default function RoleSelectionPage() {
   const addRole = (roleId: string) => {
     const totalRoles = Object.values(roleCounts).reduce((sum, count) => sum + count, 0);
     if (totalRoles < (game?.players?.length || 0)) {
-      setRoleCounts(prev => ({
-        ...prev,
-        [roleId]: (prev[roleId] || 0) + 1
-      }));
+      setRoleCounts(prev => ({ ...prev, [roleId]: (prev[roleId] || 0) + 1 }));
     }
   };
 
   const removeRole = (roleId: string) => {
-    setRoleCounts(prev => ({
-      ...prev,
-      [roleId]: Math.max(0, (prev[roleId] || 0) - 1)
-    }));
+    setRoleCounts(prev => ({ ...prev, [roleId]: Math.max(0, (prev[roleId] || 0) - 1) }));
   };
 
   const handleNextStep = () => {
-    // Initialize role assignments for roles with count > 0
     const assignments: RoleAssignment = {};
     Object.entries(roleCounts).forEach(([roleId, count]) => {
       if (count > 0 && roleId !== 'villager') {
@@ -145,7 +133,6 @@ export default function RoleSelectionPage() {
     setCurrentStep('assignPlayers');
   };
 
-  // Helper function to sort role assignments by night priority
   const getSortedRoleEntries = (roleCountsObj: RoleCount) => {
     return Object.entries(roleCountsObj)
       .filter(([roleId, count]) => count > 0 && roleId !== 'villager')
@@ -163,34 +150,21 @@ export default function RoleSelectionPage() {
       const current = prev[roleId] || [];
       const isSelected = current.includes(playerId);
       
-      // If already selected, allow deselection
       if (isSelected) {
-        return {
-          ...prev,
-          [roleId]: current.filter(id => id !== playerId)
-        };
+        return { ...prev, [roleId]: current.filter(id => id !== playerId) };
       }
       
-      // If trying to select, check if player is already assigned to another role
       const isAssignedToOtherRole = Object.entries(prev).some(
         ([rId, playerIds]) => rId !== roleId && playerIds.includes(playerId)
       );
       
-      if (isAssignedToOtherRole) {
-        // Prevent assignment to multiple roles
-        return prev;
-      }
+      if (isAssignedToOtherRole) return prev;
       
-      // Allow selection if not assigned elsewhere
-      return {
-        ...prev,
-        [roleId]: [...current, playerId]
-      };
+      return { ...prev, [roleId]: [...current, playerId] };
     });
   };
 
   const isRoleAssignmentComplete = () => {
-    // Check all roles have correct number of assignments
     for (const [roleId, count] of Object.entries(roleCounts)) {
       if (count > 0 && roleId !== 'villager') {
         const assigned = roleAssignments[roleId]?.length || 0;
@@ -203,34 +177,23 @@ export default function RoleSelectionPage() {
   const handleStartGame = async () => {
     setStarting(true);
     try {
-      console.log('Starting game with role assignments:', roleAssignments);
-      
-      // Assign roles to players
       const response = await fetch(`/api/game/${gameId}/assign-roles`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roleAssignments })
       });
 
-      console.log('Assign roles response status:', response.status);
-
       if (!response.ok) {
         const error = await response.json();
-        console.error('Assign roles error:', error);
-        alert(`Error (${response.status}): ${error.error || 'Gagal mengassign role'}`);
+        alert(`Error: ${error.error || 'Gagal mengassign role'}`);
         setStarting(false);
         return;
       }
 
-      const data = await response.json();
-      console.log('Game started successfully:', data);
-      
-      // Redirect to game dashboard
       window.scrollTo(0, 0);
       router.push(`/game/${gameId}`);
     } catch (error) {
-      console.error('Error starting game:', error);
-      alert(`Error: ${error instanceof Error ? error.message : 'Gagal memulai permainan'}`);
+      alert("Terjadi kesalahan koneksi");
       setStarting(false);
     }
   };
@@ -248,42 +211,64 @@ export default function RoleSelectionPage() {
   }
 
   return (
-    <div className="min-h-screen p-3 sm:p-4 md:p-6 lg:p-12 text-white bg-night-gradient">
+    <div className="min-h-screen p-3 md:p-6 lg:p-12 text-white bg-night-gradient pb-32">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <header className="mb-6 sm:mb-8 md:mb-12">
-          <h1 className="text-3xl sm:text-5xl md:text-6xl font-black italic mb-2 break-words">
-            Wolf<span className="text-wolf-blood">Master</span>
-          </h1>
-          <p className="text-sm sm:text-base md:text-lg text-gray-400">
-            {currentStep === 'selectCounts' ? 'Pilih jumlah role' : 'Assign role kepada pemain'}
-          </p>
-        </header>
+        
+        {/* --- HEADER STICKY --- */}
+        <header className="sticky top-2 z-50 bg-[#0a0a0a]/90 backdrop-blur-xl p-3 md:p-4 rounded-2xl border border-white/10 shadow-2xl flex justify-between items-center mb-6 transition-all">
+           <div>
+              <h1 className="text-lg md:text-3xl font-black italic">
+                 {currentStep === 'selectCounts' ? 'Pilih Role' : 'Assign Player'}
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                 <span className="text-[10px] md:text-xs text-gray-400 font-mono bg-white/5 px-2 py-0.5 rounded">
+                   Pemain: <strong className="text-white">{playerCount}</strong>
+                 </span>
+                 <span className={`text-[10px] md:text-xs font-mono px-2 py-0.5 rounded border ${remainingSlots === 0 ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'}`}>
+                   Sisa Slot: <strong>{remainingSlots}</strong>
+                 </span>
+              </div>
+           </div>
 
-        {/* Game Info */}
-        <div className="glass-card p-4 sm:p-5 md:p-6 rounded-lg sm:rounded-xl md:rounded-[24px] border border-white/10 mb-4 sm:mb-6 md:mb-8">
-          <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 text-center">
-            <div>
-              <p className="text-gray-400 text-sm sm:text-base md:text-lg mb-1 sm:mb-2">Sesi Game</p>
-              <p className="text-lg sm:text-xl md:text-3xl font-bold truncate">{game?.name}</p>
-            </div>
-            <div>
-              <p className="text-gray-400 text-sm sm:text-base md:text-lg mb-1 sm:mb-2">Total Pemain</p>
-              <p className="text-lg sm:text-xl md:text-3xl font-bold">{playerCount}</p>
-            </div>
-            <div>
-              <p className="text-gray-400 text-sm sm:text-base md:text-lg mb-1 sm:mb-2">
-                {currentStep === 'selectCounts' ? 'Slot Tersedia' : 'Step'}
-              </p>
-              <p className={`text-lg sm:text-xl md:text-3xl font-bold ${remainingSlots === 0 ? 'text-green-400' : remainingSlots > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
-                {currentStep === 'selectCounts' 
-                  ? remainingSlots > 0 ? `+${remainingSlots}` : remainingSlots === 0 ? '✓' : '✗'
-                  : '2 / 2'
-                }
-              </p>
-            </div>
-          </div>
-        </div>
+           <div className="flex gap-3">
+             {currentStep === 'assignPlayers' && (
+                <button 
+                  onClick={() => setCurrentStep('selectCounts')}
+                  className="h-10 w-10 md:h-12 md:w-auto md:px-5 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 border border-white/5"
+                >
+                   <ArrowLeft size={20} />
+                </button>
+             )}
+             
+             {currentStep === 'selectCounts' ? (
+                /* --- TOMBOL LANJUT YANG LEBIH MENCOROK --- */
+                <button 
+                   onClick={handleNextStep}
+                   disabled={totalSelected === 0 || remainingSlots < 0}
+                   className={`h-10 md:h-12 px-5 md:px-8 rounded-xl font-black text-xs md:text-base flex items-center gap-2 transition-all duration-300 shadow-xl ${
+                      totalSelected > 0 && remainingSlots >= 0
+                      ? 'bg-gradient-to-r from-wolf-gold to-yellow-400 text-black shadow-[0_0_20px_rgba(255,215,0,0.4)] hover:shadow-[0_0_30px_rgba(255,215,0,0.6)] hover:scale-105 active:scale-95' 
+                      : 'bg-white/10 text-gray-500 cursor-not-allowed opacity-50 border border-white/5'
+                   }`}
+                >
+                   LANJUT <ChevronRight size={18} className="md:w-5 md:h-5 stroke-[3]"/>
+                </button>
+             ) : (
+                <button 
+                   onClick={handleStartGame}
+                   disabled={!isRoleAssignmentComplete() || starting}
+                   className={`h-10 md:h-12 px-5 md:px-8 rounded-xl font-black text-xs md:text-base flex items-center gap-2 transition-all duration-300 shadow-xl ${
+                      isRoleAssignmentComplete()
+                      ? 'bg-gradient-to-r from-red-600 to-wolf-blood text-white shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] hover:scale-105 active:scale-95' 
+                      : 'bg-white/10 text-gray-500 cursor-not-allowed opacity-50 border border-white/5'
+                   }`}
+                >
+                   {starting ? <Loader2 className="animate-spin" size={18}/> : <Play size={18} fill="currentColor"/>}
+                   MULAI GAME
+                </button>
+             )}
+           </div>
+        </header>
 
         <AnimatePresence mode="wait">
           {currentStep === 'selectCounts' ? (
@@ -293,110 +278,90 @@ export default function RoleSelectionPage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-4 sm:space-y-5 md:space-y-6 flex flex-col"
+              className="flex flex-col"
             >
-              {/* Action Buttons - Sticky on desktop, top on mobile */}
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sticky top-4 z-30 mb-6">
-                <button
-                  onClick={() => {
-                    window.scrollTo(0, 0);
-                    router.back();
-                  }}
-                  className="flex-1 glass-card px-6 sm:px-8 py-3 sm:py-5 font-bold hover:bg-white/10 transition-all rounded-lg sm:rounded-[24px] text-base sm:text-lg md:text-xl"
-                >
-                  Kembali
-                </button>
-                <button
-                  onClick={() => {
-                    window.scrollTo(0, 0);
-                    handleNextStep();
-                  }}
-                  disabled={totalSelected === 0 || remainingSlots < 0}
-                  className={`flex-1 px-6 sm:px-8 py-3 sm:py-5 font-bold rounded-lg sm:rounded-[24px] transition-all flex items-center justify-center gap-2 text-base sm:text-lg md:text-xl ${
-                    totalSelected > 0 && remainingSlots >= 0
-                      ? 'bg-wolf-gold hover:bg-wolf-gold/80'
-                      : 'bg-gray-600 cursor-not-allowed'
-                  }`}
-                >
-                  <ChevronRight size={20} className="sm:size-6 md:size-7" />
-                  Lanjutkan
-                </button>
-              </div>
-              {/* Search Bar */}
-              <div className="relative mb-4 sm:mb-6 md:mb-8">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={22} />
+              <div className="relative mb-4">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="text"
                   placeholder="Cari role..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 md:py-5 text-base sm:text-lg md:text-xl bg-white/5 border border-white/10 rounded-lg sm:rounded-xl md:rounded-[16px] text-white placeholder-gray-500 focus:outline-none focus:border-wolf-gold/50 transition-all"
+                  className="w-full pl-10 pr-4 py-3 text-sm md:text-base bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-wolf-gold/50 transition-all"
                 />
               </div>
 
-              {/* Role Selection Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8 md:mb-12">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-3 mb-8">
                 {filteredRoles.map((role) => (
                   <motion.div
                     key={role.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="glass-card p-5 sm:p-5 md:p-6 rounded-lg sm:rounded-xl md:rounded-[24px] border border-white/10 hover:border-white/20 transition-all text-center flex flex-col items-center"
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className={`glass-card p-3 md:p-4 rounded-xl border transition-all flex flex-col justify-between min-h-[130px] md:min-h-[150px] ${
+                        roleCounts[role.id] > 0 
+                        ? 'bg-white/10 border-wolf-gold/40 shadow-[0_0_15px_rgba(255,215,0,0.05)]' 
+                        : 'bg-[#1a1a1a]/40 border-white/5 hover:bg-white/5'
+                    }`}
                   >
-                    <div className="mb-4 sm:mb-4 w-full text-center">
-                      <h3 className="text-2xl sm:text-2xl md:text-3xl font-bold mb-2 text-center">{role.name}</h3>
-                      <p className={`text-lg sm:text-base md:text-lg font-semibold text-center ${
-                        role.alignment === 'Goodside' ? 'text-blue-400' : 'text-red-400'
+                    <div>
+                      <h3 className={`text-sm md:text-xl font-bold leading-tight mb-2 ${roleCounts[role.id] > 0 ? 'text-white' : 'text-gray-300'}`}>
+                         {role.name}
+                      </h3>
+                      
+                      <span className={`text-[9px] md:text-xs px-1.5 py-0.5 rounded border uppercase tracking-wider ${
+                        role.alignment === 'Goodside' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 
+                        role.alignment === 'Badside' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                        'bg-purple-500/10 text-purple-400 border-purple-500/20'
                       }`}>
                         {role.alignment}
+                      </span>
+
+                      <p className="text-[10px] md:text-xs text-gray-400 mt-2 line-clamp-2 md:line-clamp-3 leading-relaxed">
+                        {role.description}
                       </p>
                     </div>
 
-                    <p className="text-base sm:text-base md:text-lg text-gray-300 mb-4 sm:mb-4 md:mb-6 line-clamp-3 text-center">
-                      {role.description}
-                    </p>
-
-                    {/* Counter */}
-                    <div className="flex items-center justify-center bg-white/5 rounded-lg p-3 sm:p-4 md:p-5 w-full">
+                    <div className={`flex items-center justify-between rounded-lg p-1 mt-3 transition-colors ${roleCounts[role.id] > 0 ? 'bg-black/40 border border-wolf-gold/30' : 'bg-white/5 border border-white/5'}`}>
                       <button
                         onClick={() => removeRole(role.id)}
                         disabled={!roleCounts[role.id]}
-                        className="p-2 sm:p-3 md:p-4 hover:bg-white/10 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center hover:bg-white/10 rounded transition disabled:opacity-30 disabled:cursor-not-allowed"
                       >
-                        <Minus size={20} className="sm:size-6 md:size-7" />
+                        <Minus size={14} className="md:w-5 md:h-5" />
                       </button>
-                      <span className="text-2xl sm:text-3xl md:text-4xl font-bold w-12 text-center">
+                      <span className={`text-lg md:text-2xl font-bold w-6 text-center ${roleCounts[role.id] > 0 ? 'text-wolf-gold' : 'text-gray-500'}`}>
                         {roleCounts[role.id] || 0}
                       </span>
                       <button
                         onClick={() => addRole(role.id)}
                         disabled={totalSelected >= playerCount}
-                        className="p-2 sm:p-3 md:p-4 hover:bg-white/10 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center hover:bg-white/10 rounded transition disabled:opacity-30 disabled:cursor-not-allowed"
                       >
-                        <Plus size={20} className="sm:size-6 md:size-7" />
+                        <Plus size={14} className="md:w-5 md:h-5" />
                       </button>
                     </div>
                   </motion.div>
                 ))}
 
-                {/* Villager (Default Role) */}
                 <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="glass-card p-5 sm:p-5 md:p-6 rounded-lg sm:rounded-xl md:rounded-[24px] border border-green-500/30 bg-green-500/5 text-center"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="glass-card p-3 md:p-5 rounded-xl border border-green-500/30 bg-green-500/5 flex flex-col justify-between"
                 >
-                  <div className="mb-4 sm:mb-4">
-                    <h3 className="text-xl sm:text-lg md:text-xl font-bold mb-2">Villager</h3>
-                    <p className="text-base sm:text-sm font-semibold text-green-400">Default Role</p>
+                  <div>
+                    <h3 className="text-sm md:text-xl font-bold text-green-400 mb-1">Villager</h3>
+                    <span className="text-[9px] md:text-xs px-1.5 py-0.5 rounded border border-green-500/20 text-green-400 bg-green-500/10 uppercase tracking-wider">
+                       DEFAULT
+                    </span>
+                    <p className="text-[10px] md:text-xs text-gray-300 mt-2 leading-relaxed">
+                      Sisa pemain otomatis menjadi Villager.
+                    </p>
                   </div>
 
-                  <p className="text-sm sm:text-sm text-gray-300 mb-4 sm:mb-4 md:mb-6">
-                    Pemain yang tidak mendapat role khusus akan menjadi Villager
-                  </p>
-
-                  <div className="flex items-center justify-between bg-white/5 rounded-lg p-2 sm:p-3">
-                    <span className="text-xs sm:text-sm text-gray-400">Auto assign</span>
-                    <span className="text-lg sm:text-xl font-bold text-green-400">
+                  <div className="flex items-center justify-center bg-black/20 rounded-lg p-2 mt-3 border border-green-500/20">
+                    <span className="text-[10px] md:text-xs text-gray-400 mr-2">Auto:</span>
+                    <span className="text-lg md:text-2xl font-bold text-green-400">
                       {remainingSlots}
                     </span>
                   </div>
@@ -404,139 +369,67 @@ export default function RoleSelectionPage() {
               </div>
             </motion.div>
           ) : (
-            /* --- STEP 2: ASSIGN ROLES TO PLAYERS --- */
+            /* --- STEP 2: ASSIGN PLAYERS --- */
             <motion.div
               key="assignPlayers"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-4 sm:space-y-5 md:space-y-6 flex flex-col"
+              className="flex flex-col space-y-4"
             >
-              {/* Action Buttons - Sticky on desktop, top on mobile */}
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sticky top-4 z-30 mb-6">
-                <button
-                  onClick={() => {
-                    window.scrollTo(0, 0);
-                    setCurrentStep('selectCounts');
-                  }}
-                  className="flex-1 glass-card px-6 sm:px-8 py-3 sm:py-5 font-bold hover:bg-white/10 transition-all rounded-lg sm:rounded-[24px] text-base sm:text-lg md:text-xl"
-                >
-                  Kembali
-                </button>
-                <button
-                  onClick={() => {
-                    window.scrollTo(0, 0);
-                    handleStartGame();
-                  }}
-                  disabled={!isRoleAssignmentComplete() || starting}
-                  className={`flex-1 px-6 sm:px-8 py-3 sm:py-5 font-bold rounded-lg sm:rounded-[24px] transition-all flex items-center justify-center gap-2 text-base sm:text-lg md:text-xl ${
-                    isRoleAssignmentComplete()
-                      ? 'bg-wolf-blood hover:bg-wolf-blood/80'
-                      : 'bg-gray-600 cursor-not-allowed'
-                  }`}
-                >
-                  {starting ? (
-                    <>
-                      <Loader2 size={20} className="sm:size-6 md:size-7 animate-spin" />
-                      Memproses...
-                    </>
-                  ) : (
-                    <>
-                      <Play size={20} className="sm:size-6 md:size-7" />
-                      Lanjutkan
-                    </>
-                  )}
-                </button>
-              </div>
-              {/* Role Assignment Sections */}
-              <div className="space-y-4 sm:space-y-5 md:space-y-6">
-                {getSortedRoleEntries(roleCounts).map(([roleId, count]) => {
-                  const role = roles.find(r => r.id === roleId);
-                  const assignedPlayers = roleAssignments[roleId] || [];
-                  const availablePlayers = game?.players?.filter(
-                    (p: any) => !Object.values(roleAssignments).flat().includes(p.id)
-                  ) || [];
+              {getSortedRoleEntries(roleCounts).map(([roleId, count]) => {
+                const role = roles.find(r => r.id === roleId);
+                const assignedPlayers = roleAssignments[roleId] || [];
+                
+                return (
+                  <motion.div
+                    key={roleId}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="glass-card p-4 md:p-6 rounded-xl border border-white/10"
+                  >
+                    <div className="flex justify-between items-center mb-4">
+                       <div>
+                          <h3 className="text-xl md:text-2xl font-bold">{role?.name}</h3>
+                          <p className="text-xs text-gray-400 line-clamp-1">{role?.description}</p>
+                       </div>
+                       <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                          assignedPlayers.length === count ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                       }`}>
+                          {assignedPlayers.length}/{count}
+                       </span>
+                    </div>
 
-                  return (
-                    <motion.div
-                      key={roleId}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="glass-card p-5 sm:p-6 md:p-7 rounded-lg sm:rounded-xl md:rounded-[24px] border border-white/10"
-                    >
-                      <div className="mb-4 sm:mb-5 md:mb-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center gap-2 mb-2 sm:mb-3 text-center">
-                          <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center">{role?.name}</h3>
-                          <span className={`px-4 sm:px-5 md:px-6 py-2 sm:py-3 md:py-3 rounded-full text-lg sm:text-xl md:text-2xl font-bold whitespace-nowrap ${
-                            assignedPlayers.length === count
-                              ? 'bg-green-500/20 text-green-400'
-                              : 'bg-yellow-500/20 text-yellow-400'
-                          }`}>
-                            {assignedPlayers.length} / {count}
-                          </span>
-                        </div>
-                        <p className="text-base sm:text-lg md:text-xl text-gray-400 text-center">
-                          {role?.description}
-                        </p>
-                      </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3">
+                      {game?.players?.map((player: any) => {
+                         const isAssigned = assignedPlayers.includes(player.id);
+                         const isAssignedToOther = Object.entries(roleAssignments).some(
+                           ([rId, pIds]) => rId !== roleId && pIds.includes(player.id)
+                         );
+                         const isDisabled = !isAssigned && (assignedPlayers.length >= count || isAssignedToOther);
 
-                      {/* Player Selection Grid */}
-                      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-5">
-                        {game?.players?.map((player: any) => {
-                          const isAssigned = assignedPlayers.includes(player.id);
-                          const isAssignedToOtherRole = Object.entries(roleAssignments).some(
-                            ([rId, playerIds]) => rId !== roleId && playerIds.includes(player.id)
-                          );
-                          const isDisabled = !isAssigned && (assignedPlayers.length >= count || isAssignedToOtherRole);
-
-                          return (
-                            <motion.button
-                              key={player.id}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => togglePlayerForRole(roleId, player.id)}
-                              disabled={isDisabled}
-                              className={`p-4 sm:p-5 md:p-6 rounded-lg sm:rounded-xl md:rounded-[16px] border-2 transition-all text-center font-bold text-lg sm:text-xl md:text-2xl ${
-                                isAssigned
-                                  ? 'border-wolf-blood bg-wolf-blood/10 text-white'
-                                  : isAssignedToOtherRole
-                                  ? 'border-gray-600 bg-gray-600/10 text-gray-400 cursor-not-allowed opacity-50'
-                                  : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed'
-                              }`}
-                            >
-                              <div className="flex items-center justify-center gap-2 w-full">
-                                <span className="truncate flex-1">{player.nickname}</span>
-                                {isAssigned && <Check size={24} className="sm:size-6 md:size-7 text-wolf-blood flex-shrink-0" />}
-                              </div>
-                            </motion.button>
-                          );
-                        })}
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-
-              {/* Villager Assignment Info */}
-              <div className="glass-card p-5 sm:p-5 md:p-6 rounded-lg sm:rounded-xl md:rounded-[24px] border border-green-500/30 bg-green-500/5">
-                <h3 className="text-xl sm:text-lg font-bold mb-3">Villager (Otomatis)</h3>
-                <p className="text-sm sm:text-sm text-gray-300 mb-4 sm:mb-4">
-                  Pemain yang belum terassign ke role khusus akan otomatis menjadi Villager:
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {game?.players?.map((player: any) => {
-                    const isAssigned = Object.values(roleAssignments).flat().includes(player.id);
-                    return !isAssigned ? (
-                      <div
-                        key={player.id}
-                        className="px-4 sm:px-4 py-2 sm:py-2 bg-green-500/20 border border-green-500/50 rounded-full font-bold text-green-400 text-base sm:text-sm"
-                      >
-                        {player.nickname}
-                      </div>
-                    ) : null;
-                  })}
-                </div>
-              </div>
-
+                         return (
+                           <button
+                             key={player.id}
+                             onClick={() => togglePlayerForRole(roleId, player.id)}
+                             disabled={isDisabled}
+                             className={`p-3 rounded-lg border text-sm font-bold transition-all relative overflow-hidden ${
+                                isAssigned 
+                                ? 'bg-wolf-blood text-white border-wolf-blood shadow-lg' 
+                                : isAssignedToOther
+                                ? 'bg-white/5 text-gray-600 border-transparent opacity-30 cursor-not-allowed'
+                                : 'bg-white/5 text-gray-300 border-white/10 hover:border-white/30 hover:bg-white/10'
+                             }`}
+                           >
+                              {player.nickname}
+                              {isAssigned && <Check size={16} className="absolute top-1 right-1 text-white/80"/>}
+                           </button>
+                         )
+                      })}
+                    </div>
+                  </motion.div>
+                );
+              })}
             </motion.div>
           )}
         </AnimatePresence>
