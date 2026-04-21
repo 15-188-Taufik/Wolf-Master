@@ -17,15 +17,17 @@ interface Player {
     nightPriority: number;
   };
   isAlive: boolean;
+  parentId?: string | null;
+  effects?: string[];
 }
 
 interface RoleAction {
-  [playerId: string]: string; // Map actor player id to target player id
+  [playerId: string]: string;
 }
 
 interface NightPhaseModerationProps {
   game: any;
-  onComplete: (actions: RoleAction) => void;
+  onComplete: (payload: { actions: RoleAction; great_shaman_mode?: 'check' | 'transform' }) => void;
   players: Player[];
 }
 
@@ -38,30 +40,31 @@ export default function NightPhaseModeration({
   const [actions, setActions] = useState<RoleAction>({});
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const [huntingConfirmed, setHuntingConfirmed] = useState(false);
+  const [greatShamanMode, setGreatShamanMode] = useState<'check' | 'transform' | null>(null);
+
+  const currentTurn = game?.currentTurn ?? 1;
+  const deadPlayers = players.filter(p => !p.isAlive);
 
   // Get unique roles with night actions, sorted by priority
-  // Combine werewolf and wolfman into a single hunting phase
+  // Orphan hanya malam pertama; Great Shaman hanya jika ada mayat
   const nightRoles = React.useMemo(() => {
     const uniqueRoles = new Map();
     const hasWerewolf = players.some(p => p.isAlive && p.role.id === 'werewolf');
     const hasWolfman = players.some(p => p.isAlive && p.role.id === 'wolfman');
-    
-    let processedRoles = players
+
+    players
       .filter(p => p.isAlive && p.role.nightPriority < 99)
       .forEach(p => {
-        // Skip wolfman if werewolf exists - combine into werewolf phase
-        if (p.role.id === 'wolfman' && hasWerewolf) {
-          return;
-        }
-        if (!uniqueRoles.has(p.role.id)) {
-          uniqueRoles.set(p.role.id, p.role);
-        }
+        if (p.role.id === 'wolfman' && hasWerewolf) return;
+        if (p.role.id === 'orphan' && currentTurn > 1) return; // Orphan hanya hari pertama
+        if (p.role.id === 'great_shaman' && deadPlayers.length === 0) return; // Great Shaman hanya jika ada mayat
+        if (!uniqueRoles.has(p.role.id)) uniqueRoles.set(p.role.id, p.role);
       });
 
     return Array.from(uniqueRoles.values()).sort(
       (a: any, b: any) => a.nightPriority - b.nightPriority
     );
-  }, [players]);
+  }, [players, currentTurn, deadPlayers.length]);
 
   const currentRole = nightRoles[currentRoleIdx];
   
@@ -84,17 +87,17 @@ export default function NightPhaseModeration({
   }, [currentRole, currentActor]);
 
   // Filter available targets based on role
-  const availableTargets = players.filter(
-    p => p.isAlive && p.role.id !== currentRole?.id
-  ).filter(p => {
-    // Werewolf and Wolfman cannot prey on each other
-    const wolfRoles = ['werewolf', 'wolfman', 'lone_wolf'];
-    if (wolfRoles.includes(currentRole?.id || '')) {
-      return !wolfRoles.includes(p.roleId);
-    }
-    // Gunner can choose not to shoot
-    return true;
-  });
+  // Great Shaman memilih mayat; Orphan memilih pemain hidup (bapak); lainnya pemain hidup
+  const canTargetSelf = currentRole?.id === 'guardian' || currentRole?.id === 'doctor';
+  const availableTargets = currentRole?.id === 'great_shaman'
+    ? deadPlayers
+    : players
+        .filter(p => p.isAlive && (canTargetSelf || p.role.id !== currentRole?.id))
+        .filter(p => {
+          const wolfRoles = ['werewolf', 'wolfman', 'lone_wolf'];
+          if (wolfRoles.includes(currentRole?.id || '')) return !wolfRoles.includes(p.roleId);
+          return true;
+        });
 
   React.useEffect(() => {
     console.log(`🌙 [NightPhaseModeration] Component mounted. Night roles: ${nightRoles.map(r => r.id).join(', ')}`);
@@ -152,19 +155,16 @@ export default function NightPhaseModeration({
         setCurrentRoleIdx(currentRoleIdx + 1);
         setSelectedTarget(null);
       }
+    } else if (currentRole?.id === 'great_shaman' && currentActor && selectedTarget && greatShamanMode) {
+      setActions(prev => ({ ...prev, [currentActor.id]: selectedTarget }));
+      if (currentRoleIdx < nightRoles.length - 1) {
+        setCurrentRoleIdx(currentRoleIdx + 1);
+        setSelectedTarget(null);
+        setGreatShamanMode(null);
+      }
     } else if (currentActor && selectedTarget) {
-      // Store action for this specific actor
       console.log(`🎯 [OTHER] Storing action for ${currentActor.id} → ${selectedTarget}`);
-      setActions(prev => {
-        const newActions = {
-          ...prev,
-          [currentActor.id]: selectedTarget,
-        };
-        console.log(`🎯 [OTHER] Actions after confirm:`, newActions);
-        return newActions;
-      });
-      
-      // Move to next role
+      setActions(prev => ({ ...prev, [currentActor.id]: selectedTarget }));
       if (currentRoleIdx < nightRoles.length - 1) {
         setCurrentRoleIdx(currentRoleIdx + 1);
         setSelectedTarget(null);
@@ -189,14 +189,12 @@ export default function NightPhaseModeration({
   };
 
   const handleFinish = () => {
-    console.log('📤 [NightPhaseModeration.handleFinish] Current actions state before sending:', actions);
-    console.log('📤 [NightPhaseModeration] Action keys:', Object.keys(actions));
-    console.log('📤 [NightPhaseModeration] Action values:', Object.values(actions));
-    onComplete(actions);
+    onComplete({ actions, great_shaman_mode: greatShamanMode ?? undefined });
   };
 
   const isLastRole = currentRoleIdx === nightRoles.length - 1;
-  const progress = ((currentRoleIdx + 1) / nightRoles.length) * 100;
+  const progress = nightRoles.length ? ((currentRoleIdx + 1) / nightRoles.length) * 100 : 0;
+  const isGreatShamanReady = currentRole?.id === 'great_shaman' ? (!!selectedTarget && !!greatShamanMode) : !!selectedTarget;
 
   if (!currentRole) {
     return (
@@ -236,9 +234,9 @@ export default function NightPhaseModeration({
         key={currentRole.id}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-card p-8 rounded-[32px] border-2 border-wolf-gold/30 bg-gradient-to-br from-wolf-gold/5 to-transparent"
+        className="glass-card p-4 sm:p-6 md:p-8 rounded-2xl md:rounded-[32px] border-2 border-wolf-gold/30 bg-gradient-to-br from-wolf-gold/5 to-transparent"
       >
-        <div className="mb-8 text-center">
+        <div className="mb-4 sm:mb-6 md:mb-8 text-center">
           <h1 className="text-2xl sm:text-4xl md:text-5xl font-black mb-2 text-wolf-gold italic">
             {currentRole?.id === 'werewolf' ? 'BERBURU MALAM' : currentRole?.name}
           </h1>
@@ -253,7 +251,7 @@ export default function NightPhaseModeration({
 
         {/* Players with this role */}
         {playersWithRole.length > 0 && (
-          <div className="mb-8 text-center">
+          <div className="mb-4 sm:mb-6 md:mb-8 text-center">
             <p className="text-base sm:text-lg md:text-xl font-bold text-gray-400 mb-3 text-center">PEMAIN DENGAN ROLE INI:</p>
             <div className="flex flex-wrap gap-2 justify-center">
               {playersWithRole.map(p => (
@@ -270,7 +268,7 @@ export default function NightPhaseModeration({
         )}
 
         {/* Instructions */}
-        <div className="bg-white/5 border border-white/10 rounded-[20px] p-6 mb-8 text-center">
+        <div className="bg-white/5 border border-white/10 rounded-xl md:rounded-[20px] p-4 md:p-6 mb-4 sm:mb-6 md:mb-8 text-center">
           <div className="flex flex-col items-center gap-3 mb-4">
             <AlertCircle className="text-wolf-gold flex-shrink-0" size={24} />
             <div className="text-center">
@@ -280,6 +278,10 @@ export default function NightPhaseModeration({
                   ? 'WEREWOLF & WOLFMAN BUKA MATA! Silakan pilih 1 target pemain untuk diburu. Atau lewati jika ingin tidak memburu.'
                   : currentRole?.id === 'gunner'
                   ? 'GUNNER BUKA MATA! Silakan pilih 1 target pemain untuk ditambak. Atau lewati jika ingin tidak menembak.'
+                  : currentRole?.id === 'orphan'
+                  ? 'ORPHAN BUKA MATA! Pilih 1 pemain sebagai bapak. Jika bapak mati nanti, Orphan berubah jadi Werewolf.'
+                  : currentRole?.id === 'great_shaman'
+                  ? 'GREAT SHAMAN BUKA MATA! Pilih 1 mayat, lalu pilih: Cek role mayat ATAU Berubah jadi role mayat (sekali saja).'
                   : `${currentRole?.name} BUKA MATA! Silakan pilih 1 target pemain untuk aksi malam.`}
               </p>
             </div>
@@ -287,18 +289,36 @@ export default function NightPhaseModeration({
         </div>
 
         {/* Target Selection Grid */}
-        <div className="mb-8">
-          <p className="text-base sm:text-lg md:text-xl font-bold text-gray-400 mb-4 flex items-center justify-center gap-2 text-center">
+        <div className="mb-4 sm:mb-6 md:mb-8">
+          <p className="text-sm sm:text-base font-bold text-gray-400 mb-3 flex items-center justify-center gap-2 text-center">
             <Target size={18} />
             PILIH TARGET:
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {currentRole?.id === 'great_shaman' && (
+            <div className="flex gap-3 justify-center mb-4">
+              <button
+                type="button"
+                onClick={() => setGreatShamanMode('check')}
+                className={`px-4 py-2 rounded-xl font-bold border-2 transition-all ${greatShamanMode === 'check' ? 'border-wolf-gold bg-wolf-gold/20 text-wolf-gold' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}
+              >
+                Cek role mayat
+              </button>
+              <button
+                type="button"
+                onClick={() => setGreatShamanMode('transform')}
+                className={`px-4 py-2 rounded-xl font-bold border-2 transition-all ${greatShamanMode === 'transform' ? 'border-wolf-gold bg-wolf-gold/20 text-wolf-gold' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}
+              >
+                Berubah jadi role mayat
+              </button>
+            </div>
+          )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
             {availableTargets.map(target => (
               <motion.button
                 key={target.id}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => handleSelectTarget(target.id)}
-                className={`p-4 sm:p-5 md:p-6 rounded-[16px] border-2 transition-all text-center font-bold text-sm sm:text-base md:text-lg ${
+                className={`p-3 sm:p-4 md:p-5 rounded-xl md:rounded-[16px] border-2 transition-all text-center font-bold text-sm sm:text-base ${
                   selectedTarget === target.id
                     ? 'border-wolf-blood bg-wolf-blood/10 text-wolf-blood'
                     : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
@@ -310,7 +330,9 @@ export default function NightPhaseModeration({
                     <Check size={22} className="text-wolf-blood" />
                   )}
                 </div>
-                <p className="text-sm sm:text-base md:text-lg text-gray-400 mt-1 text-center">{target.role.name}</p>
+                <p className="text-sm sm:text-base md:text-lg text-gray-400 mt-1 text-center">
+                  {target.role?.name ?? '-'}{!target.isAlive ? ' (mayat)' : ''}
+                </p>
               </motion.button>
             ))}
           </div>
@@ -338,7 +360,7 @@ export default function NightPhaseModeration({
                 handleConfirmRole();
               }
             }}
-            disabled={!selectedTarget}
+            disabled={!isGreatShamanReady}
             className={`flex-1 px-6 py-3 sm:py-4 rounded-[16px] font-bold transition-all flex items-center justify-center gap-2 text-center text-base sm:text-lg md:text-xl ${
               selectedTarget
                 ? 'bg-wolf-blood hover:bg-wolf-blood/80'

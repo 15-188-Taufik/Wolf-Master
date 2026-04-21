@@ -7,20 +7,44 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const { actions } = await req.json(); // Format: { [actorId]: targetId } or werewolf_hunt: targetId
+    const body = await req.json();
+    const { actions: rawActions, great_shaman_mode: greatShamanMode } = body as {
+      actions: Record<string, string>;
+      great_shaman_mode?: 'check' | 'transform';
+    };
+    const actions = { ...rawActions };
 
     console.log('📋 [RESOLVE] Incoming actions:', JSON.stringify(actions));
 
-    // 1. Ambil data semua pemain & role yang masih hidup
+    const game = await prisma.game.findUnique({ where: { id }, select: { currentTurn: true } });
+    const currentTurn = game?.currentTurn ?? 1;
+
+    // 1. Ambil data pemain hidup & mati
     const players = await prisma.player.findMany({
       where: { gameId: id, isAlive: true },
+      include: { role: true }
+    });
+    const deadPlayers = await prisma.player.findMany({
+      where: { gameId: id, isAlive: false },
       include: { role: true }
     });
 
     console.log('👥 [RESOLVE] Players:', players.map(p => ({ id: p.id, nickname: p.nickname, roleId: p.roleId })));
 
+    // Ghost: mati otomatis di malam ke-2
+    let deaths: string[] = [];
+    let reports: string[] = [];
+    if (currentTurn === 2) {
+      const ghosts = players.filter(p => p.roleId === 'ghost');
+      if (ghosts.length > 0) {
+        for (const g of ghosts) deaths.push(g.id);
+        reports.push("Ghost meninggal di malam kedua.");
+      }
+    }
+
     // Handle special werewolf_hunt key - map to all werewolf and wolfman players
     let normalizedActions = { ...actions };
+    delete (normalizedActions as any).great_shaman_mode;
     if (actions.werewolf_hunt) {
       const werewolfPlayers = players.filter(p => ['werewolf', 'wolfman'].includes(p.roleId));
       for (const wolf of werewolfPlayers) {
@@ -42,14 +66,12 @@ export async function POST(
 
     console.log('📊 [RESOLVE] Sorted actions:', sortedActions.map(a => ({ actor: a.actor?.nickname, actorRole: a.actor?.roleId, target: a.target?.nickname })));
 
-    let deaths: string[] = [];
     let protections: string[] = [];
-    let reports: string[] = [];
     let blacksmithActive = false;
     let silencedPlayers: string[] = [];
     let reportedDeaths: Set<string> = new Set(); // Track reported deaths to avoid duplicates
 
-    // --- PHASE 1: SETUP & MANIPULATION (Thief, Blacksmith, Protection) ---
+    // --- PHASE 1: SETUP & MANIPULATION (Thief, Blacksmith, Protection, Orphan, Great Shaman) ---
     let phase1ActorIds: string[] = []; // Track which players were involved in Phase 1
     
     for (const action of sortedActions) {
@@ -67,23 +89,65 @@ export async function POST(
             prisma.player.update({ where: { id: actor.id }, data: { roleId: targetRole } }),
             prisma.player.update({ where: { id: target.id }, data: { roleId: actorRole } })
           ]);
-          reports.push("Seorang Thief telah mencuri identitas salah satu warga!");
+          reports.push("Thief mencuri identitas salah satu warga.");
           break;
 
         case 'blacksmith':
           phase1ActorIds.push(actor.id);
           blacksmithActive = true;
           if (!reportedDeaths.has('blacksmith_active')) {
-            reports.push("Blacksmith menyebarkan biji besi, Werewolf akan kesulitan masuk.");
+            reports.push("Blacksmith menyebarkan biji besi; Werewolf akan kesulitan masuk.");
             reportedDeaths.add('blacksmith_active');
           }
           break;
 
         case 'guardian':
+          phase1ActorIds.push(actor.id);
+          protections.push(target.id);
+          reports.push("Guardian berhasil melindungi warga.");
+          break;
         case 'doctor':
           phase1ActorIds.push(actor.id);
           protections.push(target.id);
+          reports.push(`Doctor menyembuhkan ${target.nickname}.`);
           break;
+
+        case 'orphan':
+          // Orphan hanya beraksi di malam pertama (hari pertama): pilih bapak
+          if (currentTurn === 1) {
+            phase1ActorIds.push(actor.id);
+            await prisma.player.update({
+              where: { id: actor.id },
+              data: { parentId: target.id }
+            });
+            reports.push(`Orphan memilih ${target.nickname} sebagai bapak.`);
+          }
+          break;
+      }
+    }
+
+    // Great Shaman: hanya jika ada mayat; aksi = cek role mayat ATAU berubah jadi role mayat (sekali saja)
+    const greatShamanPlayers = players.filter(p => p.roleId === 'great_shaman');
+    for (const shaman of greatShamanPlayers) {
+      const deadTargetId = normalizedActions[shaman.id] as string | undefined;
+      if (!deadTargetId || !greatShamanMode || deadPlayers.length === 0) continue;
+      const deadTarget = deadPlayers.find(p => p.id === deadTargetId);
+      if (!deadTarget) continue;
+
+      phase1ActorIds.push(shaman.id);
+      if (greatShamanMode === 'check') {
+        reports.push(`Great Shaman mengecek mayat ${deadTarget.nickname}: role adalah ${deadTarget.role.name}.`);
+      } else if (greatShamanMode === 'transform') {
+        const currentEffects = Array.isArray(shaman.effects) ? shaman.effects : [];
+        if (currentEffects.includes('great_shaman_transformed')) continue; // hanya sekali
+        await prisma.player.update({
+          where: { id: shaman.id },
+          data: {
+            roleId: deadTarget.roleId,
+            effects: [...currentEffects, 'great_shaman_transformed']
+          }
+        });
+        reports.push(`Great Shaman mengambil bentuk ${deadTarget.nickname} dan berubah menjadi ${deadTarget.role.name}.`);
       }
     }
 
@@ -123,18 +187,18 @@ export async function POST(
         case 'lone_wolf':
           if (blacksmithActive) {
             if (!reportedDeaths.has(`blacksmith_block_${target.id}`)) {
-              reports.push("Werewolf mencoba menyerang, namun terhalang oleh biji besi!");
+              reports.push("Serigala mencoba masuk ke desa, tetapi terhalang oleh biji besi Blacksmith.");
               reportedDeaths.add(`blacksmith_block_${target.id}`);
             }
           } else if (!protections.includes(target.id)) {
             deaths.push(target.id);
             if (!reportedDeaths.has(`werewolf_kill_${target.id}`)) {
-              reports.push(`${target.nickname} tewas mengenaskan akibat terkaman serigala.`);
+              reports.push(`Serigala menerkam ${target.nickname}.`);
               reportedDeaths.add(`werewolf_kill_${target.id}`);
             }
           } else {
             if (!reportedDeaths.has(`werewolf_saved_${target.id}`)) {
-              reports.push(`Serangan serigala pada ${target.nickname} berhasil digagalkan oleh pelindung!`);
+              reports.push("Serigala mencoba menerkam warga, tetapi dilindungi Guardian.");
               reportedDeaths.add(`werewolf_saved_${target.id}`);
             }
           }
@@ -142,18 +206,30 @@ export async function POST(
 
         case 'gunner':
           console.log(`🔫 [GUNNER] ${actor.nickname} shooting ${target.nickname}`);
-          deaths.push(target.id);
-          if (!reportedDeaths.has(`gunner_kill_${target.id}`)) {
-            reports.push(`*DOR!* Suara tembakan terdengar keras. ${target.nickname} tewas seketika.`);
-            reportedDeaths.add(`gunner_kill_${target.id}`);
+          if (protections.includes(target.id)) {
+            if (!reportedDeaths.has(`gunner_blocked_${target.id}`)) {
+              reports.push("Gunner menembak warga, tetapi dilindungi Guardian.");
+              reportedDeaths.add(`gunner_blocked_${target.id}`);
+            }
+          } else {
+            deaths.push(target.id);
+            if (!reportedDeaths.has(`gunner_kill_${target.id}`)) {
+              reports.push(`Gunner menembak ${target.nickname}.`);
+              reportedDeaths.add(`gunner_kill_${target.id}`);
+            }
           }
           break;
 
         case 'psycopath':
-          if (!protections.includes(target.id)) {
+          if (protections.includes(target.id)) {
+            if (!reportedDeaths.has(`psycopath_blocked_${target.id}`)) {
+              reports.push("Psycopath menyerang warga, tetapi dilindungi.");
+              reportedDeaths.add(`psycopath_blocked_${target.id}`);
+            }
+          } else {
             deaths.push(target.id);
             if (!reportedDeaths.has(`psycopath_kill_${target.id}`)) {
-              reports.push(`Seorang psikopat telah menghabisi ${target.nickname} dengan kejam.`);
+              reports.push(`Psycopath menghabisi ${target.nickname}.`);
               reportedDeaths.add(`psycopath_kill_${target.id}`);
             }
           }
@@ -164,7 +240,7 @@ export async function POST(
             if (target.roleId === 'villager') {
               await prisma.player.update({ where: { id: target.id }, data: { roleId: 'vampire' } });
               if (!reportedDeaths.has(`vampire_turn_${target.id}`)) {
-                reports.push(`${target.nickname} merasa lemas dan menemukan bekas gigitan di leher.`);
+                reports.push("Seorang warga merasa lemas dan menemukan bekas gigitan di leher.");
                 reportedDeaths.add(`vampire_turn_${target.id}`);
               }
             } else {
@@ -182,14 +258,13 @@ export async function POST(
           if (targetIsWolf) {
             deaths.push(actor.id);
             if (!reportedDeaths.has(`harlot_death_${actor.id}`)) {
-              reports.push(`Harlot tewas karena nekat mengunjungi rumah serigala.`);
+              reports.push("Harlot tewas karena mengunjungi rumah serigala.");
               reportedDeaths.add(`harlot_death_${actor.id}`);
             }
           } else {
-            // Harlot selamat jika menginap di rumah orang baik
             protections.push(actor.id);
             if (!reportedDeaths.has(`harlot_safe_${actor.id}`)) {
-              reports.push(`Harlot sedang tidak berada di rumahnya sendiri malam ini.`);
+              reports.push("Harlot menginap di rumah seorang warga; Harlot aman malam ini.");
               reportedDeaths.add(`harlot_safe_${actor.id}`);
             }
           }
@@ -198,7 +273,7 @@ export async function POST(
         case 'seer':
         case 'sorcerer':
           if (!reportedDeaths.has(`${actor.roleId}_see_${target.id}`)) {
-            reports.push(`${actor.role.name} menerawang ${target.nickname}: Terlihat aura **${target.role.alignment}**.`);
+            reports.push(`${actor.role.name} menerawang seorang warga: aura ${target.role.alignment}.`);
             reportedDeaths.add(`${actor.roleId}_see_${target.id}`);
           }
           break;
@@ -206,7 +281,7 @@ export async function POST(
         case 'spellcaster':
           silencedPlayers.push(target.id);
           if (!reportedDeaths.has(`spellcaster_silence_${target.id}`)) {
-            reports.push(`${target.nickname} telah dibungkam secara magis (Tidak bisa bicara besok).`);
+            reports.push("Spellcaster membungkam seorang warga (tidak bisa bicara besok).");
             reportedDeaths.add(`spellcaster_silence_${target.id}`);
           }
           break;
@@ -237,7 +312,7 @@ export async function POST(
       }
 
       // 2. Orphan Effect: Jika "Bapak" (parentId) mati, Orphan jadi Werewolf
-      const orphans = players.filter(p => p.parentId === deadPlayer.id && p.roleId === 'orphan');
+      const orphans = updatedPlayers.filter(p => p.roleId === 'orphan' && p.parentId === deadPlayer.id);
       for (const orphan of orphans) {
         await prisma.player.update({
           where: { id: orphan.id },
@@ -289,14 +364,18 @@ export async function POST(
       });
     }
 
-    // Catat ke Log
+    // Catat ke Log & increment turn
     await prisma.log.create({
       data: {
         gameId: id,
-        turnNumber: 1, // Logika turn bisa disesuaikan
+        turnNumber: currentTurn,
         phase: "MORNING_REPORT",
         message: reports.join(" | ") || "Malam yang sangat tenang, tidak ada korban."
       }
+    });
+    await prisma.game.update({
+      where: { id },
+      data: { currentTurn: currentTurn + 1 }
     });
 
     return NextResponse.json({
